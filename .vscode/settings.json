@@ -1,0 +1,9 @@
+﻿{
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-1.8",
+      "path": "C:\\Users\\22614\\AppData\\Local\\Programs\\Temurin8\\jdk8u504-b01",
+      "default": true
+    }
+  ]
+}
