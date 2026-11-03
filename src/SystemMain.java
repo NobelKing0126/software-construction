@@ -1,11 +1,12 @@
+import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+// Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class SystemMain {
-    public static void main(String[] args) {
-        List<User> users = new ArrayList<User>();
+    public static void main(String[] args) throws IOException {
+        List<User> users = FileUtil.loadUsers();
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
@@ -46,7 +47,7 @@ public class SystemMain {
         }
     }
 
-    private static void register(Scanner scanner, List<User> users) {
+    private static void register(Scanner scanner, List<User> users) throws IOException {
         System.out.print("请输入注册账号：");
         String username = scanner.nextLine().trim();
         System.out.print("请输入注册密码：");
@@ -67,6 +68,7 @@ public class SystemMain {
 
         User user = new User(username, password, "student", LocalDateTime.now());
         users.add(user);
+        FileUtil.saveUsers(users);
         System.out.println("注册成功。");
         System.out.println(user);
     }
