@@ -5,8 +5,14 @@ import java.util.Scanner;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class SystemMain {
-    public static void main(String[] args) throws IOException {
-        List<User> users = FileUtil.loadUsers();
+    public static void main(String[] args) {
+        List<User> users;
+        try {
+            users = FileUtil.loadUsers();
+        } catch (Exception e) {
+            System.out.println("用户数据加载失败，请检查数据文件。");
+            return;
+        }
         Scanner scanner = new Scanner(System.in);
 
         while (true) {
@@ -17,15 +23,21 @@ public class SystemMain {
             System.out.print("请选择：");
             String choice = scanner.nextLine();
 
-            if ("1".equals(choice)) {
-                login(scanner, users);
-            } else if ("2".equals(choice)) {
-                register(scanner, users);
-            } else if ("0".equals(choice)) {
-                System.out.println("已退出系统。");
-                break;
-            } else {
-                System.out.println("无效选项，请重新选择。");
+            try {
+                if ("1".equals(choice)) {
+                    login(scanner, users);
+                } else if ("2".equals(choice)) {
+                    register(scanner, users);
+                } else if ("0".equals(choice)) {
+                    System.out.println("已退出系统。");
+                    break;
+                } else {
+                    System.out.println("无效选项，请重新选择。");
+                }
+            } catch (BusinessException e) {
+                System.out.println(e.getMessage());
+            } catch (Exception e) {
+                System.out.println("系统操作失败，请稍后重试。");
             }
         }
 
@@ -37,14 +49,21 @@ public class SystemMain {
         String username = scanner.nextLine().trim();
         System.out.print("请输入密码：");
         String password = scanner.nextLine();
+        if (!isUsernameValid(username)) {
+            throw new ParameterEmptyException("账号不能为空。");
+        }
+        if (password.isEmpty()) {
+            throw new ParameterEmptyException("密码不能为空。");
+        }
         User user = findUserByUsername(users, username);
 
-        if (isUsernameValid(username) && user != null
-                && password.equals(user.getPassword())) {
-            System.out.println("登录成功，欢迎使用校园资源预约系统！");
-        } else {
-            System.out.println("账号或密码错误，登录失败。");
+        if (user == null) {
+            throw new UserNotFoundException("用户不存在，登录失败。");
         }
+        if (!password.equals(user.getPassword())) {
+            throw new PasswordErrorException("密码错误，登录失败。");
+        }
+        System.out.println("登录成功，欢迎使用校园资源预约系统！");
     }
 
     private static void register(Scanner scanner, List<User> users) throws IOException {
@@ -54,16 +73,13 @@ public class SystemMain {
         String password = scanner.nextLine();
 
         if (!isUsernameValid(username)) {
-            System.out.println("账号不能为空。");
-            return;
+            throw new ParameterEmptyException("账号不能为空。");
         }
         if (!isPasswordValid(password)) {
-            System.out.println("密码不能为空且长度不能少于6位。");
-            return;
+            throw new ParameterEmptyException("密码不能为空且长度不能少于6位。");
         }
         if (findUserByUsername(users, username) != null) {
-            System.out.println("账号已存在，注册失败。");
-            return;
+            throw new UserAlreadyExistsException("账号已存在，注册失败。");
         }
 
         User user = new User(username, password, "student", LocalDateTime.now());
