@@ -1,0 +1,42 @@
+校园资源预约系统 V1.4 实验报告
+
+实验任务
+任务5：自定义异常。在 V1.3 用户登录、注册和文件持久化功能上，增加业务异常类型，并由程序入口统一显示中文提示。验收要求是业务错误显示友好文字，不输出原生异常堆栈。
+
+设计与实现
+新增 BusinessException，继承 RuntimeException；新增 UserAlreadyExistsException、UserNotFoundException、PasswordErrorException 和 ParameterEmptyException 四种业务子异常。异常类只保存异常类型和中文提示，不处理用户业务或文件读写。
+
+SystemMain 在登录和注册校验失败时主动抛出相应业务异常：账号已存在、用户不存在、密码错误以及账号或密码等参数为空或不符合长度要求。程序入口捕获业务异常并打印其中文提示；其他操作异常显示通用中文提示，用户数据加载失败也显示中文提示，不输出底层堆栈。业务异常在菜单操作处处理后，程序返回原有菜单循环。
+
+User.java 与 FileUtil.java 保持不变。用户数据仍在启动时加载，注册成功后写入 user.txt；有效注册、登录和退出流程保持原状。
+
+编译与运行说明
+本次实际使用 Temurin JDK 8，安装目录为 C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01。javac 版本为 1.8.0_504，java 版本为 openjdk 1.8.0_504（Temurin build 1.8.0_504-b01）。
+
+使用 UTF-8 编码编译，命令为：rtk proxy C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin\javac.exe -encoding UTF-8 -d .v1.4-verify\classes src\User.java src\FileUtil.java src\SystemMain.java src\BusinessException.java src\UserAlreadyExistsException.java src\UserNotFoundException.java src\PasswordErrorException.java src\ParameterEmptyException.java。编译退出码为 0。
+
+运行使用同一 JDK 目录下的 java.exe，并指定 -Dfile.encoding=UTF-8。测试在隔离临时目录中执行，临时目录内生成的 class 文件和 user.txt 已在验证后清理；项目运行目录原先没有 user.txt，未修改或删除既有用户文件。
+
+测试输入与实际输出
+首次启动的输入依次为：2、v14test、secret1、2、v14test、secret1、1、missing、secret1、1、v14test、wrong、2、空账号、secret1、2、shortuser、12345、0。
+
+程序实际输出了“注册成功。”，并打印 User{username='v14test', password='secret1', role='student', registerTime=2026-11-11T17:10:10.193}；重复注册时输出“账号已存在，注册失败。”；未注册账号登录时输出“用户不存在，登录失败。”；错误密码登录时输出“密码错误，登录失败。”；空账号时输出“账号不能为空。”；注册密码为 12345 时输出“密码不能为空且长度不能少于6位。”；最后输出“已退出系统。”。
+
+程序重启后的输入依次为：1、v14test、secret1、0。程序从新生成的 user.txt 加载用户，实际输出“登录成功，欢迎使用校园资源预约系统！”，随后输出“已退出系统。”。
+
+另一次运行用于验证登录密码为空，输入依次为：1、v14test、空密码、0。程序实际输出“密码不能为空。”，随后返回菜单并在退出选项后输出“已退出系统。”。
+
+以上三次运行的 Java 进程退出码均为 0，标准错误输出为空。对实际捕获输出的检查确认，重复账号、用户不存在、密码错误、参数为空及密码长度不符合要求均有对应中文提示；未发现 Exception 或 SystemMain 堆栈文本。第一次启动成功注册、第二次启动成功登录，验证了注册保存和重启加载。
+
+问题与处理
+V1.3 基线运行中，不存在的用户和错误密码都会显示“账号或密码错误，登录失败。”，无法区分任务5要求的两种业务异常。本版本分别抛出 UserNotFoundException 和 PasswordErrorException，实测输出变为不同的中文提示。
+
+首次记录运行输出时，Windows 默认字符集与 UTF-8 解码设置不一致，测试记录程序无法解码 JVM 输出。之后在运行参数中指定 -Dfile.encoding=UTF-8，重新执行并完成输出检查；没有因此修改业务代码。验证脚本的一次 Unicode 转义断言也曾写错，修正脚本后重新检查捕获输出，断言通过。
+
+代码实现提交号：b2c7eb2a5311695c66da80c72edf2999b4f3d668
+
+工作思路总结
+先读取任务5原文、评分要求和 V1.3 的 User.java、FileUtil.java、SystemMain.java，确认只需在现有登录注册流程中增加异常类型和统一提示处理。随后用隔离目录记录 V1.3 基线行为，再新增异常类并调整 SystemMain 的验证与捕获位置。最后使用 Temurin JDK 8 编译，通过真实控制台输入检查四类业务异常、输入校验、用户注册保存、重启加载和登录成功，并清理临时编译与运行文件。
+
+运行截图位置（请由学生补充）
+请在此处插入本版本真实运行截图，或填写截图文件名及存放位置。
