@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 import java.util.UUID;
@@ -11,14 +12,14 @@ public class SystemMain {
         try {
             users = FileUtil.loadUsers();
         } catch (Exception e) {
-            System.out.println("用户数据加载失败，请检查数据文件。");
+            showResult(Result.fail("用户数据加载失败，请检查 user.txt。"));
             return;
         }
         List<CampusResource> resources;
         try {
             resources = FileUtil.loadResources();
         } catch (Exception e) {
-            System.out.println("资源数据加载失败，请检查 resource.txt。");
+            showResult(Result.fail("资源数据加载失败，请检查 resource.txt。"));
             return;
         }
         Scanner scanner = new Scanner(System.in);
@@ -33,9 +34,21 @@ public class SystemMain {
 
             try {
                 if ("1".equals(choice)) {
-                    resourceMenu(scanner, login(scanner, users), resources);
+                    System.out.print("请输入账号：");
+                    String username = scanner.nextLine().trim();
+                    System.out.print("请输入密码：");
+                    String password = scanner.nextLine();
+                    Result<User> result = login(users, username, password);
+                    System.out.println(result.getMsg());
+                    if (result.isSuccess()) {
+                        resourceMenu(scanner, result.getData(), resources);
+                    }
                 } else if ("2".equals(choice)) {
-                    register(scanner, users);
+                    System.out.print("请输入注册账号：");
+                    String username = scanner.nextLine().trim();
+                    System.out.print("请输入注册密码：");
+                    String password = scanner.nextLine();
+                    showResult(register(users, username, password));
                 } else if ("0".equals(choice)) {
                     System.out.println("已退出系统。");
                     break;
@@ -43,36 +56,33 @@ public class SystemMain {
                     System.out.println("无效选项，请重新选择。");
                 }
             } catch (BusinessException e) {
-                System.out.println(e.getMessage());
+                showResult(Result.fail(e.getMessage()));
+            } catch (IOException e) {
+                showResult(Result.fail("用户数据保存失败，请检查 user.txt。"));
             } catch (Exception e) {
-                System.out.println("系统操作失败，请稍后重试。");
+                showResult(Result.fail("系统操作失败，请稍后重试。"));
             }
         }
 
         scanner.close();
     }
 
-    private static User login(Scanner scanner, List<User> users) {
-        System.out.print("请输入账号：");
-        String username = scanner.nextLine().trim();
-        System.out.print("请输入密码：");
-        String password = scanner.nextLine();
+    private static Result<User> login(List<User> users, String username, String password) {
         if (!isUsernameValid(username)) {
             throw new ParameterEmptyException("账号不能为空。");
         }
-        if (password.isEmpty()) {
+        if (password == null || password.isEmpty()) {
             throw new ParameterEmptyException("密码不能为空。");
         }
-        User user = findUserByUsername(users, username);
-
-        if (user == null) {
+        Result<User> found = findUserByUsername(users, username);
+        if (!found.isSuccess()) {
             throw new UserNotFoundException("用户不存在，登录失败。");
         }
+        User user = found.getData();
         if (!password.equals(user.getPassword())) {
             throw new PasswordErrorException("密码错误，登录失败。");
         }
-        System.out.println("登录成功，欢迎使用校园资源预约系统！");
-        return user;
+        return Result.success("登录成功，欢迎使用校园资源预约系统！", user);
     }
 
     private static void resourceMenu(Scanner scanner, User user,
@@ -105,40 +115,39 @@ public class SystemMain {
                 }
                 if (admin) {
                     if ("1".equals(choice)) {
-                        addResource(user, scanner, resources);
+                        showResult(readAndAddResource(scanner, user, resources));
                     } else if ("2".equals(choice)) {
-                        printAllResources(user, resources);
+                        showResult(queryAllResources(user, resources));
                     } else if ("3".equals(choice)) {
-                        modifyResource(user, scanner, resources);
+                        showResult(readAndModifyResource(scanner, user, resources));
                     } else if ("4".equals(choice)) {
-                        deleteResource(user, scanner, resources);
+                        showResult(readAndDeleteResource(scanner, user, resources));
                     } else {
                         System.out.println("无效选项，请重新选择。");
                     }
                 } else if ("1".equals(choice)) {
-                    printAvailableResources(user, resources);
+                    showResult(queryAvailableResources(user, resources));
                 } else if ("2".equals(choice)) {
-                    addResource(user, scanner, resources);
+                    showResult(addResource(user, resources, null, null, null, null));
                 } else if ("3".equals(choice)) {
-                    modifyResource(user, scanner, resources);
+                    showResult(modifyResource(user, resources, null, null, null, null, null));
                 } else if ("4".equals(choice)) {
-                    deleteResource(user, scanner, resources);
+                    showResult(deleteResource(user, resources, null));
                 } else {
                     System.out.println("无效选项，请重新选择。");
                 }
             } catch (BusinessException e) {
-                System.out.println(e.getMessage());
+                showResult(Result.fail(e.getMessage()));
             } catch (IOException e) {
-                System.out.println("资源数据保存失败，请检查 resource.txt。");
+                showResult(Result.fail("资源数据保存失败，请检查 resource.txt。"));
             } catch (Exception e) {
-                System.out.println("系统操作失败，请稍后重试。");
+                showResult(Result.fail("系统操作失败，请稍后重试。"));
             }
         }
     }
 
-    private static void addResource(User user, Scanner scanner,
+    private static Result<CampusResource> readAndAddResource(Scanner scanner, User user,
             List<CampusResource> resources) throws IOException {
-        ensureAdmin(user);
         System.out.print("请输入资源名称：");
         String name = scanner.nextLine().trim();
         System.out.print("请输入资源类型：");
@@ -147,53 +156,58 @@ public class SystemMain {
         String location = scanner.nextLine().trim();
         System.out.print("请输入资源描述：");
         String description = scanner.nextLine().trim();
-        if (name.isEmpty()) {
+        return addResource(user, resources, name, type, location, description);
+    }
+
+    private static Result<CampusResource> addResource(User user, List<CampusResource> resources,
+            String name, String type, String location, String description) throws IOException {
+        ensureAdmin(user);
+        if (name == null || name.isEmpty()) {
             throw new ParameterEmptyException("资源名称不能为空。");
         }
 
         String id = generateResourceId(resources);
-        resources.add(new CampusResource(id, name, type, "AVAILABLE", location, description));
+        CampusResource resource = new CampusResource(id, name, type, "AVAILABLE", location,
+                description);
+        resources.add(resource);
         FileUtil.saveResources(resources);
-        System.out.println("资源新增成功，资源 ID：" + id);
+        return Result.success("资源新增成功，资源 ID：" + id, resource);
     }
 
-    private static void printAllResources(User user, List<CampusResource> resources) {
+    private static Result<List<CampusResource>> queryAllResources(User user,
+            List<CampusResource> resources) {
         ensureAdmin(user);
         if (resources.isEmpty()) {
-            System.out.println("当前没有校园资源。");
-            return;
+            return Result.success("当前没有校园资源。", resources);
         }
-        for (CampusResource resource : resources) {
-            System.out.println(resource);
-        }
+        return Result.success("查询全部资源成功。", resources);
     }
 
-    private static void printAvailableResources(User user,
+    private static Result<List<CampusResource>> queryAvailableResources(User user,
             List<CampusResource> resources) {
         if (!"student".equals(user.getRole())) {
             throw new PermissionDeniedException("只有学生可以查询可预约资源。");
         }
-        boolean found = false;
+        List<CampusResource> available = new ArrayList<CampusResource>();
         for (CampusResource resource : resources) {
             if ("AVAILABLE".equals(resource.getStatus())) {
-                System.out.println(resource);
-                found = true;
+                available.add(resource);
             }
         }
-        if (!found) {
-            System.out.println("当前没有可预约资源。");
+        if (available.isEmpty()) {
+            return Result.success("当前没有可预约资源。", available);
         }
+        return Result.success("查询可预约资源成功。", available);
     }
 
-    private static void modifyResource(User user, Scanner scanner,
+    private static Result<CampusResource> readAndModifyResource(Scanner scanner, User user,
             List<CampusResource> resources) throws IOException {
-        ensureAdmin(user);
         System.out.print("请输入要修改的资源 ID：");
-        CampusResource resource = findResourceById(resources, scanner.nextLine().trim());
-        if (resource == null) {
+        String id = scanner.nextLine().trim();
+        Result<CampusResource> found = findResourceById(resources, id);
+        if (!found.isSuccess()) {
             throw new ResourceNotFoundException("资源不存在，无法修改。");
         }
-
         System.out.print("请输入新的资源名称：");
         String name = scanner.nextLine().trim();
         System.out.print("请输入新的资源类型：");
@@ -202,7 +216,18 @@ public class SystemMain {
         String location = scanner.nextLine().trim();
         System.out.print("请输入新的资源状态：");
         String status = scanner.nextLine().trim();
-        if (name.isEmpty()) {
+        return modifyResource(user, resources, id, name, type, location, status);
+    }
+
+    private static Result<CampusResource> modifyResource(User user,
+            List<CampusResource> resources, String id, String name, String type,
+            String location, String status) throws IOException {
+        ensureAdmin(user);
+        Result<CampusResource> found = findResourceById(resources, id);
+        if (!found.isSuccess()) {
+            throw new ResourceNotFoundException("资源不存在，无法修改。");
+        }
+        if (name == null || name.isEmpty()) {
             throw new ParameterEmptyException("资源名称不能为空。");
         }
         if (!isResourceStatusValid(status)) {
@@ -210,43 +235,49 @@ public class SystemMain {
                     "资源状态不合法，只能是 AVAILABLE、OCCUPIED 或 DISABLED。");
         }
 
+        CampusResource resource = found.getData();
         resource.setName(name);
         resource.setType(type);
         resource.setLocation(location);
         resource.setStatus(status);
         FileUtil.saveResources(resources);
-        System.out.println("资源修改成功。");
+        return Result.success("资源修改成功。", resource);
     }
 
-    private static void deleteResource(User user, Scanner scanner,
+    private static Result<Void> readAndDeleteResource(Scanner scanner, User user,
             List<CampusResource> resources) throws IOException {
-        ensureAdmin(user);
         System.out.print("请输入要删除的资源 ID：");
-        CampusResource resource = findResourceById(resources, scanner.nextLine().trim());
-        if (resource == null) {
+        return deleteResource(user, resources, scanner.nextLine().trim());
+    }
+
+    private static Result<Void> deleteResource(User user,
+            List<CampusResource> resources, String id) throws IOException {
+        ensureAdmin(user);
+        Result<CampusResource> found = findResourceById(resources, id);
+        if (!found.isSuccess()) {
             throw new ResourceNotFoundException("资源不存在，无法删除。");
         }
-        resources.remove(resource);
+        resources.remove(found.getData());
         FileUtil.saveResources(resources);
-        System.out.println("资源删除成功。");
+        return Result.success("资源删除成功。");
     }
 
     private static String generateResourceId(List<CampusResource> resources) {
         String id;
         do {
             id = UUID.randomUUID().toString();
-        } while (findResourceById(resources, id) != null);
+        } while (findResourceById(resources, id).isSuccess());
         return id;
     }
 
-    private static CampusResource findResourceById(List<CampusResource> resources,
-            String id) {
+    private static Result<CampusResource> findResourceById(
+            List<CampusResource> resources, String id) {
         for (CampusResource resource : resources) {
-            if (id.equals(resource.getId())) {
-                return resource;
+            if (id != null && id.equals(resource.getId())) {
+                return Result.success("查询资源成功。", resource);
             }
         }
-        return null;
+        return Result.fail("未找到该 ID 对应的资源。");
     }
 
     private static boolean isResourceStatusValid(String status) {
@@ -261,36 +292,31 @@ public class SystemMain {
         }
     }
 
-    private static void register(Scanner scanner, List<User> users) throws IOException {
-        System.out.print("请输入注册账号：");
-        String username = scanner.nextLine().trim();
-        System.out.print("请输入注册密码：");
-        String password = scanner.nextLine();
-
+    private static Result<User> register(List<User> users, String username,
+            String password) throws IOException {
         if (!isUsernameValid(username)) {
             throw new ParameterEmptyException("账号不能为空。");
         }
         if (!isPasswordValid(password)) {
             throw new ParameterEmptyException("密码不能为空且长度不能少于6位。");
         }
-        if (findUserByUsername(users, username) != null) {
+        if (findUserByUsername(users, username).isSuccess()) {
             throw new UserAlreadyExistsException("账号已存在，注册失败。");
         }
 
         User user = new User(username, password, "student", LocalDateTime.now());
         users.add(user);
         FileUtil.saveUsers(users);
-        System.out.println("注册成功。");
-        System.out.println(user);
+        return Result.success("注册成功。", user);
     }
 
-    private static User findUserByUsername(List<User> users, String username) {
+    private static Result<User> findUserByUsername(List<User> users, String username) {
         for (User user : users) {
-            if (username.equals(user.getUsername())) {
-                return user;
+            if (username != null && username.equals(user.getUsername())) {
+                return Result.success("查询用户成功。", user);
             }
         }
-        return null;
+        return Result.fail("用户不存在。");
     }
 
     private static boolean isUsernameValid(String username) {
@@ -299,5 +325,18 @@ public class SystemMain {
 
     private static boolean isPasswordValid(String password) {
         return password != null && !password.isEmpty() && password.length() >= 6;
+    }
+
+    private static void showResult(Result<?> result) {
+        System.out.println(result.getMsg());
+        if (result.isSuccess() && result.getData() != null) {
+            if (result.getData() instanceof List<?>) {
+                for (Object item : (List<?>) result.getData()) {
+                    System.out.println(item);
+                }
+            } else {
+                System.out.println(result.getData());
+            }
+        }
     }
 }
