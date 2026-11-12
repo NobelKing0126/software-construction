@@ -14,6 +14,7 @@ import java.util.List;
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public final class FileUtil {
     private static final String USER_FILE = "user.txt";
+    private static final String RESOURCE_FILE = "resource.txt";
     private static final char SEPARATOR = '|';
 
     private FileUtil() {
@@ -30,7 +31,7 @@ public final class FileUtil {
                 new FileInputStream(file), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                List<String> fields = splitRecord(line);
+                List<String> fields = splitRecord(line, "用户数据文件格式错误。");
                 if (fields.size() != 4) {
                     throw new IOException("用户数据文件格式错误。");
                 }
@@ -39,6 +40,28 @@ public final class FileUtil {
             }
         }
         return users;
+    }
+
+    public static List<CampusResource> loadResources() throws IOException {
+        File file = new File(RESOURCE_FILE);
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+
+        List<CampusResource> resources = new ArrayList<CampusResource>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                List<String> fields = splitRecord(line, "资源数据文件格式错误。");
+                if (fields.size() != 6) {
+                    throw new IOException("资源数据文件格式错误。");
+                }
+                resources.add(new CampusResource(fields.get(0), fields.get(1),
+                        fields.get(2), fields.get(3), fields.get(4), fields.get(5)));
+            }
+        }
+        return resources;
     }
 
     public static void saveUsers(List<User> users) throws IOException {
@@ -57,6 +80,31 @@ public final class FileUtil {
                 writer.write(escape(user.getRole()));
                 writer.write(SEPARATOR);
                 writer.write(user.getRegisterTime().toString());
+                writer.newLine();
+            }
+        }
+    }
+
+    public static void saveResources(List<CampusResource> resources) throws IOException {
+        File file = new File(RESOURCE_FILE);
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(file), StandardCharsets.UTF_8))) {
+            for (CampusResource resource : resources) {
+                writer.write(escape(resource.getId()));
+                writer.write(SEPARATOR);
+                writer.write(escape(resource.getName()));
+                writer.write(SEPARATOR);
+                writer.write(escape(resource.getType()));
+                writer.write(SEPARATOR);
+                writer.write(escape(resource.getStatus()));
+                writer.write(SEPARATOR);
+                writer.write(escape(resource.getLocation()));
+                writer.write(SEPARATOR);
+                writer.write(escape(resource.getDescription()));
                 writer.newLine();
             }
         }
@@ -81,7 +129,7 @@ public final class FileUtil {
         return escaped.toString();
     }
 
-    private static List<String> splitRecord(String line) throws IOException {
+    private static List<String> splitRecord(String line, String errorMessage) throws IOException {
         List<String> fields = new ArrayList<String>();
         StringBuilder field = new StringBuilder();
         boolean escaped = false;
@@ -96,7 +144,7 @@ public final class FileUtil {
                 } else if (character == SEPARATOR || character == '\\') {
                     field.append(character);
                 } else {
-                    throw new IOException("用户数据文件格式错误。");
+                    throw new IOException(errorMessage);
                 }
                 escaped = false;
             } else if (character == '\\') {
@@ -110,7 +158,7 @@ public final class FileUtil {
         }
 
         if (escaped) {
-            throw new IOException("用户数据文件格式错误。");
+            throw new IOException(errorMessage);
         }
         fields.add(field.toString());
         return fields;
