@@ -1,12 +1,12 @@
 import java.io.IOException;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class SystemMain {
@@ -190,13 +190,8 @@ public class SystemMain {
     private static Result<List<CampusResource>> queryAllResources(User user,
             List<CampusResource> resources) {
         ensureAdmin(user);
-        List<CampusResource> sorted = resources.stream()
-                .sorted(Comparator.comparing(CampusResource::getId))
-                .collect(Collectors.toList());
-        if (sorted.isEmpty()) {
-            return Result.success("当前没有校园资源。", sorted);
-        }
-        return Result.success("查询全部资源成功。", sorted);
+        return collectResourceQuery(resources.stream(),
+                "查询全部资源成功。", "当前没有校园资源。");
     }
 
     private static Result<List<CampusResource>> queryAvailableResources(User user,
@@ -204,14 +199,9 @@ public class SystemMain {
         if (!"student".equals(user.getRole())) {
             throw new PermissionDeniedException("只有学生可以查询可预约资源。");
         }
-        List<CampusResource> available = resources.stream()
-                .filter(resource -> "AVAILABLE".equals(resource.getStatus()))
-                .sorted(Comparator.comparing(CampusResource::getId))
-                .collect(Collectors.toList());
-        if (available.isEmpty()) {
-            return Result.success("当前没有可预约资源。", available);
-        }
-        return Result.success("查询可预约资源成功。", available);
+        return collectResourceQuery(resources.stream()
+                .filter(resource -> "AVAILABLE".equals(resource.getStatus())),
+                "查询可预约资源成功。", "当前没有可预约资源。");
     }
 
     private static Result<List<CampusResource>> queryResourcesByName(User user,
@@ -223,15 +213,18 @@ public class SystemMain {
         if (keyword == null || keyword.isEmpty()) {
             throw new ParameterEmptyException("资源名称关键词不能为空。");
         }
-        List<CampusResource> matched = resources.stream()
+        return collectResourceQuery(resources.stream()
                 .filter(resource -> admin || "AVAILABLE".equals(resource.getStatus()))
-                .filter(resource -> resource.getName().contains(keyword))
+                .filter(resource -> resource.getName().contains(keyword)),
+                "按名称查询资源成功。", "未找到匹配的资源。");
+    }
+
+    private static Result<List<CampusResource>> collectResourceQuery(
+            Stream<CampusResource> stream, String successMsg, String emptyMsg) {
+        List<CampusResource> matched = stream
                 .sorted(Comparator.comparing(CampusResource::getId))
                 .collect(Collectors.toList());
-        if (matched.isEmpty()) {
-            return Result.success("未找到匹配的资源。", matched);
-        }
-        return Result.success("按名称查询资源成功。", matched);
+        return Result.success(matched.isEmpty() ? emptyMsg : successMsg, matched);
     }
 
     private static Result<CampusResource> queryResourceById(User user,
