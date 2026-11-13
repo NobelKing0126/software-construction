@@ -1,9 +1,12 @@
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class SystemMain {
@@ -99,10 +102,14 @@ public class SystemMain {
                 System.out.println("2. 查询全部资源");
                 System.out.println("3. 修改资源");
                 System.out.println("4. 删除资源");
+                System.out.println("5. 按名称查询资源");
+                System.out.println("6. 按 ID 查询资源");
                 System.out.println("0. 退出登录");
             } else {
                 System.out.println("学生资源查询菜单");
                 System.out.println("1. 查询可预约资源");
+                System.out.println("5. 按名称查询资源");
+                System.out.println("6. 按 ID 查询资源");
                 System.out.println("0. 退出登录");
             }
             System.out.print("请选择：");
@@ -113,7 +120,13 @@ public class SystemMain {
                     System.out.println("已退出登录。");
                     return;
                 }
-                if (admin) {
+                if ("5".equals(choice)) {
+                    System.out.print("请输入资源名称关键词：");
+                    showResult(queryResourcesByName(user, resources, scanner.nextLine().trim()));
+                } else if ("6".equals(choice)) {
+                    System.out.print("请输入资源 ID：");
+                    showResult(queryResourceById(user, resources, scanner.nextLine().trim()));
+                } else if (admin) {
                     if ("1".equals(choice)) {
                         showResult(readAndAddResource(scanner, user, resources));
                     } else if ("2".equals(choice)) {
@@ -177,10 +190,13 @@ public class SystemMain {
     private static Result<List<CampusResource>> queryAllResources(User user,
             List<CampusResource> resources) {
         ensureAdmin(user);
-        if (resources.isEmpty()) {
-            return Result.success("当前没有校园资源。", resources);
+        List<CampusResource> sorted = resources.stream()
+                .sorted(Comparator.comparing(CampusResource::getId))
+                .collect(Collectors.toList());
+        if (sorted.isEmpty()) {
+            return Result.success("当前没有校园资源。", sorted);
         }
-        return Result.success("查询全部资源成功。", resources);
+        return Result.success("查询全部资源成功。", sorted);
     }
 
     private static Result<List<CampusResource>> queryAvailableResources(User user,
@@ -188,16 +204,47 @@ public class SystemMain {
         if (!"student".equals(user.getRole())) {
             throw new PermissionDeniedException("只有学生可以查询可预约资源。");
         }
-        List<CampusResource> available = new ArrayList<CampusResource>();
-        for (CampusResource resource : resources) {
-            if ("AVAILABLE".equals(resource.getStatus())) {
-                available.add(resource);
-            }
-        }
+        List<CampusResource> available = resources.stream()
+                .filter(resource -> "AVAILABLE".equals(resource.getStatus()))
+                .sorted(Comparator.comparing(CampusResource::getId))
+                .collect(Collectors.toList());
         if (available.isEmpty()) {
             return Result.success("当前没有可预约资源。", available);
         }
         return Result.success("查询可预约资源成功。", available);
+    }
+
+    private static Result<List<CampusResource>> queryResourcesByName(User user,
+            List<CampusResource> resources, String keyword) {
+        boolean admin = "admin".equals(user.getRole());
+        if (!admin && !"student".equals(user.getRole())) {
+            throw new PermissionDeniedException("当前账号角色无资源操作权限。");
+        }
+        if (keyword == null || keyword.isEmpty()) {
+            throw new ParameterEmptyException("资源名称关键词不能为空。");
+        }
+        List<CampusResource> matched = resources.stream()
+                .filter(resource -> admin || "AVAILABLE".equals(resource.getStatus()))
+                .filter(resource -> resource.getName().contains(keyword))
+                .sorted(Comparator.comparing(CampusResource::getId))
+                .collect(Collectors.toList());
+        if (matched.isEmpty()) {
+            return Result.success("未找到匹配的资源。", matched);
+        }
+        return Result.success("按名称查询资源成功。", matched);
+    }
+
+    private static Result<CampusResource> queryResourceById(User user,
+            List<CampusResource> resources, String id) {
+        if (!"admin".equals(user.getRole()) && !"student".equals(user.getRole())) {
+            throw new PermissionDeniedException("当前账号角色无资源操作权限。");
+        }
+        Result<CampusResource> found = findResourceById(resources, id);
+        if ("student".equals(user.getRole()) && found.isSuccess()
+                && !"AVAILABLE".equals(found.getData().getStatus())) {
+            return Result.fail("未找到该 ID 对应的资源。");
+        }
+        return found;
     }
 
     private static Result<CampusResource> readAndModifyResource(Scanner scanner, User user,
@@ -272,10 +319,11 @@ public class SystemMain {
 
     private static Result<CampusResource> findResourceById(
             List<CampusResource> resources, String id) {
-        for (CampusResource resource : resources) {
-            if (id != null && id.equals(resource.getId())) {
-                return Result.success("查询资源成功。", resource);
-            }
+        Optional<CampusResource> found = resources.stream()
+                .filter(resource -> id != null && id.equals(resource.getId()))
+                .findFirst();
+        if (found.isPresent()) {
+            return Result.success("查询资源成功。", found.get());
         }
         return Result.fail("未找到该 ID 对应的资源。");
     }
