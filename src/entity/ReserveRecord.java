@@ -12,6 +12,8 @@ public class ReserveRecord {
     private LocalDateTime reserveEndTime;
     private ReserveStatus status;
     private String remark;
+    private String rejectReason = "";
+    private LocalDateTime auditTime;
 
     public ReserveRecord() {
     }
@@ -93,6 +95,22 @@ public class ReserveRecord {
         this.remark = remark;
     }
 
+    public String getRejectReason() {
+        return rejectReason;
+    }
+
+    public void setRejectReason(String rejectReason) {
+        this.rejectReason = rejectReason;
+    }
+
+    public LocalDateTime getAuditTime() {
+        return auditTime;
+    }
+
+    public void setAuditTime(LocalDateTime auditTime) {
+        this.auditTime = auditTime;
+    }
+
     @Override
     public String toString() {
         return "ReserveRecord{recordId='" + recordId + '\''
@@ -103,6 +121,8 @@ public class ReserveRecord {
                 + ", reserveEndTime=" + reserveEndTime
                 + ", status=" + status
                 + ", remark='" + remark + '\''
+                + ", rejectReason='" + rejectReason + '\''
+                + ", auditTime=" + (auditTime == null ? "未记录" : auditTime)
                 + '}';
     }
 }

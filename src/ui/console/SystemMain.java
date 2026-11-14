@@ -34,6 +34,10 @@ public class SystemMain {
     }
 
     public static void main(String[] args) {
+        startApplication();
+    }
+
+    private static void startApplication() {
         UserDao users;
         try {
             users = new FileUserDao();
@@ -111,29 +115,7 @@ public class SystemMain {
 
         while (true) {
             boolean admin = "admin".equals(user.getRole());
-            if (admin) {
-                System.out.println("管理员资源管理菜单");
-                System.out.println("1. 新增资源");
-                System.out.println("2. 查询全部资源");
-                System.out.println("3. 修改资源");
-                System.out.println("4. 删除资源");
-                System.out.println("5. 按名称查询资源");
-                System.out.println("6. 按 ID 查询资源");
-                System.out.println("7. 查询全部预约");
-                System.out.println("8. 按记录 ID 审核预约");
-                System.out.println("9. 按条件查询预约");
-                System.out.println("0. 退出登录");
-            } else {
-                System.out.println("学生资源查询菜单");
-                System.out.println("1. 查询可预约资源");
-                System.out.println("5. 按名称查询资源");
-                System.out.println("6. 按 ID 查询资源");
-                System.out.println("10. 提交预约申请");
-                System.out.println("11. 查询我的预约");
-                System.out.println("12. 取消我的预约");
-                System.out.println("0. 退出登录");
-            }
-            System.out.print("请选择：");
+            showResourceMenu(admin);
             String choice = scanner.nextLine();
 
             try {
@@ -148,45 +130,9 @@ public class SystemMain {
                     System.out.print("请输入资源 ID：");
                     showResult(resourceService.queryResourceById(user, scanner.nextLine().trim()));
                 } else if (admin) {
-                    if ("1".equals(choice)) {
-                        showResult(readAndAddResource(scanner, user));
-                    } else if ("2".equals(choice)) {
-                        showResult(resourceService.queryAllResources(user));
-                    } else if ("3".equals(choice)) {
-                        showResult(readAndModifyResource(scanner, user));
-                    } else if ("4".equals(choice)) {
-                        showResult(readAndDeleteResource(scanner, user));
-                    } else if ("7".equals(choice)) {
-                        showResult(reserveService.queryAllReserves(user));
-                    } else if ("8".equals(choice)) {
-                        showResult(readAndAuditReserve(scanner, user));
-                    } else if ("9".equals(choice)) {
-                        showResult(readAndQueryReserves(scanner, user));
-                    } else if ("10".equals(choice) || "11".equals(choice)
-                            || "12".equals(choice)) {
-                        reserveService.requireStudentAccess(user);
-                    } else {
-                        System.out.println("无效选项，请重新选择。");
-                    }
-                } else if ("1".equals(choice)) {
-                    showResult(resourceService.queryAvailableResources(user));
-                } else if ("2".equals(choice)) {
-                    showResult(resourceService.addResource(user, null, null, null, null));
-                } else if ("3".equals(choice)) {
-                    showResult(resourceService.modifyResource(user, null, null, null, null, null));
-                } else if ("4".equals(choice)) {
-                    showResult(resourceService.deleteResource(user, null));
-                } else if ("10".equals(choice)) {
-                    showResult(readAndSubmitReserve(scanner, user));
-                } else if ("11".equals(choice)) {
-                    showResult(reserveService.queryMyReserves(user));
-                } else if ("12".equals(choice)) {
-                    showResult(readAndCancelReserve(scanner, user));
-                } else if ("7".equals(choice) || "8".equals(choice)
-                        || "9".equals(choice)) {
-                    reserveService.requireAdminReserveAccess(user);
+                    handleAdminChoice(scanner, user, choice);
                 } else {
-                    System.out.println("无效选项，请重新选择。");
+                    handleStudentChoice(scanner, user, choice);
                 }
             } catch (BusinessException e) {
                 showResult(Result.fail(e.getMessage()));
@@ -195,6 +141,80 @@ public class SystemMain {
             } catch (Exception e) {
                 showResult(Result.fail("系统操作失败，请稍后重试。"));
             }
+        }
+    }
+
+    private void showResourceMenu(boolean admin) {
+        if (admin) {
+            System.out.println("管理员资源管理菜单");
+            System.out.println("1. 新增资源");
+            System.out.println("2. 查询全部资源");
+            System.out.println("3. 修改资源");
+            System.out.println("4. 删除资源");
+            System.out.println("5. 按名称查询资源");
+            System.out.println("6. 按 ID 查询资源");
+            System.out.println("7. 查询全部预约");
+            System.out.println("8. 按记录 ID 审核预约");
+            System.out.println("9. 按条件查询预约");
+            System.out.println("13. 查看全部待审核预约");
+        } else {
+            System.out.println("学生资源查询菜单");
+            System.out.println("1. 查询可预约资源");
+            System.out.println("5. 按名称查询资源");
+            System.out.println("6. 按 ID 查询资源");
+            System.out.println("10. 提交预约申请");
+            System.out.println("11. 查询我的预约");
+            System.out.println("12. 取消我的预约");
+        }
+        System.out.println("0. 退出登录");
+        System.out.print("请选择：");
+    }
+
+    private void handleAdminChoice(Scanner scanner, User user, String choice) throws IOException {
+        if ("1".equals(choice)) {
+            showResult(readAndAddResource(scanner, user));
+        } else if ("2".equals(choice)) {
+            showResult(resourceService.queryAllResources(user));
+        } else if ("3".equals(choice)) {
+            showResult(readAndModifyResource(scanner, user));
+        } else if ("4".equals(choice)) {
+            showResult(readAndDeleteResource(scanner, user));
+        } else if ("7".equals(choice)) {
+            showResult(reserveService.queryAllReserves(user));
+        } else if ("8".equals(choice)) {
+            showResult(readAndAuditReserve(scanner, user));
+        } else if ("9".equals(choice)) {
+            showResult(readAndQueryReserves(scanner, user));
+        } else if ("13".equals(choice)) {
+            showResult(reserveService.queryPendingReserves(user));
+        } else if ("10".equals(choice) || "11".equals(choice)
+                || "12".equals(choice)) {
+            reserveService.requireStudentAccess(user);
+        } else {
+            System.out.println("无效选项，请重新选择。");
+        }
+    }
+
+    private void handleStudentChoice(Scanner scanner, User user, String choice) throws IOException {
+        if ("1".equals(choice)) {
+            showResult(resourceService.queryAvailableResources(user));
+        } else if ("2".equals(choice)) {
+            showResult(resourceService.addResource(user, null, null, null, null));
+        } else if ("3".equals(choice)) {
+            showResult(resourceService.modifyResource(user, null, null, null, null, null));
+        } else if ("4".equals(choice)) {
+            showResult(resourceService.deleteResource(user, null));
+        } else if ("10".equals(choice)) {
+            showResult(readAndSubmitReserve(scanner, user));
+        } else if ("11".equals(choice)) {
+            showResult(reserveService.queryMyReserves(user));
+        } else if ("12".equals(choice)) {
+            showResult(readAndCancelReserve(scanner, user));
+        } else if ("7".equals(choice) || "8".equals(choice)
+                || "9".equals(choice) || "13".equals(choice)) {
+            reserveService.requireAdminReserveAccess(user);
+        } else {
+            System.out.println("无效选项，请重新选择。");
         }
     }
 
@@ -253,7 +273,13 @@ public class SystemMain {
         System.out.print("请输入要审核的预约记录 ID：");
         String recordId = scanner.nextLine().trim();
         System.out.print("请选择审核结果（1. 通过  2. 驳回）：");
-        return reserveService.auditReserve(user, recordId, scanner.nextLine().trim());
+        String decision = scanner.nextLine().trim();
+        String rejectReason = "";
+        if ("2".equals(decision)) {
+            System.out.print("请输入驳回原因：");
+            rejectReason = scanner.nextLine();
+        }
+        return reserveService.auditReserve(user, recordId, decision, rejectReason);
     }
 
     private Result<List<ReserveRecord>> readAndQueryReserves(Scanner scanner, User user) {

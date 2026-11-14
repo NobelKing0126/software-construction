@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -16,9 +17,11 @@ import entity.ReserveRecord;
 import entity.ReserveStatus;
 import entity.User;
 import exception.BusinessException;
+import exception.InvalidReserveStatusException;
 import exception.ParameterEmptyException;
 import exception.PermissionDeniedException;
 import exception.ResourceNotFoundException;
+import exception.ResourceOccupiedException;
 import utils.Result;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
@@ -66,10 +69,10 @@ public class ReserveRecordService {
             throw new BusinessException("结束时间不能早于当前时间。");
         }
         if (hasPassConflict(resourceId, start, end)) {
-            throw new BusinessException("预约时间冲突：该资源已有已通过的预约。");
+            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
         }
         if (!"AVAILABLE".equals(resource.getStatus())) {
-            throw new BusinessException("资源当前不可预约。");
+            throw new ResourceOccupiedException("资源当前不可预约。");
         }
 
         String recordId = generateReserveId();
@@ -94,17 +97,12 @@ public class ReserveRecordService {
 
     public Result<ReserveRecord> cancelReserve(User user, String recordId) {
         ensureStudent(user);
-        ReserveRecord record = records.findById(recordId);
-        if (record == null) {
-            throw new BusinessException("预约记录不存在，无法取消。");
-        }
+        ReserveRecord record = Optional.ofNullable(records.findById(recordId))
+                .orElseThrow(() -> new BusinessException("预约记录不存在，无法取消。"));
         if (!user.getUsername().equals(record.getApplicantUsername())) {
             throw new PermissionDeniedException("只能取消本人的预约。");
         }
-        if (record.getStatus() != ReserveStatus.PENDING
-                && record.getStatus() != ReserveStatus.PASS) {
-            throw new BusinessException("当前预约状态不可取消。");
-        }
+        requireTransition(record.getStatus(), ReserveStatus.CANCEL);
 
         boolean wasPass = record.getStatus() == ReserveStatus.PASS;
         CampusResource resource = null;
@@ -118,7 +116,7 @@ public class ReserveRecordService {
                 && record.getResourceId().equals(other.getResourceId())
                 && other.getStatus() == ReserveStatus.PASS);
         updateReserveStatus(record, ReserveStatus.CANCEL,
-                release ? resource : null, "AVAILABLE");
+                release ? resource : null, "AVAILABLE", null);
         return Result.success("预约取消成功。", record);
     }
 
@@ -128,20 +126,28 @@ public class ReserveRecordService {
                 "查询全部预约成功。", "当前没有预约记录。");
     }
 
-    public Result<ReserveRecord> auditReserve(User user, String recordId, String decision) {
+    public Result<List<ReserveRecord>> queryPendingReserves(User user) {
+        requireAdminReserveAccess(user);
+        return collectReserveQuery(records.findAll().stream()
+                .filter(record -> record.getStatus() == ReserveStatus.PENDING),
+                "查询待审核预约成功。", "当前没有待审核预约。");
+    }
+
+    public Result<ReserveRecord> auditReserve(User user, String recordId, String decision,
+            String rejectReason) {
         ensureAdmin(user);
-        ReserveRecord record = records.findById(recordId);
-        if (record == null) {
-            throw new BusinessException("预约记录不存在，无法审核。");
-        }
-        if (record.getStatus() != ReserveStatus.PENDING) {
-            throw new BusinessException("该预约已处理，不能重复审核。");
-        }
+        ReserveRecord record = Optional.ofNullable(records.findById(recordId))
+                .orElseThrow(() -> new BusinessException("预约记录不存在，无法审核。"));
+        ReserveStatus nextStatus = "2".equals(decision) ? ReserveStatus.REJECT : ReserveStatus.PASS;
+        requireTransition(record.getStatus(), nextStatus);
         if (!"1".equals(decision) && !"2".equals(decision)) {
             throw new BusinessException("审核选项无效，请输入 1 或 2。");
         }
         if ("2".equals(decision)) {
-            updateReserveStatus(record, ReserveStatus.REJECT, null, null);
+            if (rejectReason == null || rejectReason.trim().isEmpty()) {
+                throw new ParameterEmptyException("驳回原因不能为空。");
+            }
+            updateReserveStatus(record, ReserveStatus.REJECT, null, null, rejectReason);
             return Result.success("预约审核驳回。", record);
         }
 
@@ -151,14 +157,14 @@ public class ReserveRecordService {
         }
         if (hasPassConflict(record.getResourceId(),
                 record.getReserveStartTime(), record.getReserveEndTime())) {
-            throw new BusinessException("预约时间冲突：该资源已有已通过的预约。");
+            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
         }
         boolean otherPass = hasPassRecord(record.getResourceId());
         if (!"AVAILABLE".equals(resource.getStatus())
                 && !(otherPass && "OCCUPIED".equals(resource.getStatus()))) {
-            throw new BusinessException("资源当前不可审核通过。");
+            throw new ResourceOccupiedException("资源当前不可审核通过。");
         }
-        updateReserveStatus(record, ReserveStatus.PASS, resource, "OCCUPIED");
+        updateReserveStatus(record, ReserveStatus.PASS, resource, "OCCUPIED", "");
         return Result.success("预约审核通过。", record);
     }
 
@@ -212,11 +218,34 @@ public class ReserveRecordService {
         return id;
     }
 
+    private void requireTransition(ReserveStatus current, ReserveStatus next) {
+        boolean allowed = current == ReserveStatus.PENDING
+                && (next == ReserveStatus.PASS || next == ReserveStatus.REJECT
+                        || next == ReserveStatus.CANCEL)
+                || current == ReserveStatus.PASS && next == ReserveStatus.CANCEL;
+        if (!allowed) {
+            if (next == ReserveStatus.CANCEL) {
+                throw new InvalidReserveStatusException("当前预约状态不可取消。");
+            }
+            if (next == ReserveStatus.PASS || next == ReserveStatus.REJECT) {
+                throw new InvalidReserveStatusException("该预约已处理，不能重复审核。");
+            }
+            throw new InvalidReserveStatusException("预约状态变更不合法。");
+        }
+    }
+
     private void updateReserveStatus(ReserveRecord record, ReserveStatus nextStatus,
-            CampusResource resource, String nextResourceStatus) {
+            CampusResource resource, String nextResourceStatus, String rejectReason) {
         ReserveStatus oldStatus = record.getStatus();
+        String oldRejectReason = record.getRejectReason();
+        LocalDateTime oldAuditTime = record.getAuditTime();
         String oldResourceStatus = resource == null ? null : resource.getStatus();
         record.setStatus(nextStatus);
+        // 取消仅改变状态，保留已有审核信息；审核失败时三个字段一起恢复。
+        if (nextStatus == ReserveStatus.PASS || nextStatus == ReserveStatus.REJECT) {
+            record.setRejectReason(rejectReason);
+            record.setAuditTime(LocalDateTime.now());
+        }
         if (resource != null) {
             resource.setStatus(nextResourceStatus);
         }
@@ -229,6 +258,8 @@ public class ReserveRecordService {
             }
         } catch (IOException e) {
             record.setStatus(oldStatus);
+            record.setRejectReason(oldRejectReason);
+            record.setAuditTime(oldAuditTime);
             if (resource != null) {
                 resource.setStatus(oldResourceStatus);
             }

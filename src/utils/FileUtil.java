@@ -87,16 +87,24 @@ public final class FileUtil {
             String line;
             while ((line = reader.readLine()) != null) {
                 List<String> fields = splitRecord(line, "预约数据文件格式错误。");
-                if (fields.size() != 8 || fields.get(0).isEmpty()
+                if ((fields.size() != 8 && fields.size() != 10) || fields.get(0).isEmpty()
                         || !ids.add(fields.get(0))) {
                     throw new IOException("预约数据文件格式错误。");
                 }
                 try {
-                    records.add(new ReserveRecord(fields.get(0), fields.get(1),
+                    ReserveRecord record = new ReserveRecord(fields.get(0), fields.get(1),
                             fields.get(2), LocalDateTime.parse(fields.get(3)),
                             LocalDateTime.parse(fields.get(4)),
                             LocalDateTime.parse(fields.get(5)),
-                            ReserveStatus.valueOf(fields.get(6)), fields.get(7)));
+                            ReserveStatus.valueOf(fields.get(6)), fields.get(7));
+                    // V3.1 的八字段记录没有审核信息，保留空值，不补造历史时间。
+                    if (fields.size() == 10) {
+                        record.setRejectReason(fields.get(8));
+                        if (!fields.get(9).isEmpty()) {
+                            record.setAuditTime(LocalDateTime.parse(fields.get(9)));
+                        }
+                    }
+                    records.add(record);
                 } catch (RuntimeException e) {
                     throw new IOException("预约数据文件格式错误。", e);
                 }
@@ -175,6 +183,10 @@ public final class FileUtil {
                 writer.write(record.getStatus().name());
                 writer.write(SEPARATOR);
                 writer.write(escape(record.getRemark() == null ? "" : record.getRemark()));
+                writer.write(SEPARATOR);
+                writer.write(escape(record.getRejectReason() == null ? "" : record.getRejectReason()));
+                writer.write(SEPARATOR);
+                writer.write(record.getAuditTime() == null ? "" : record.getAuditTime().toString());
                 writer.newLine();
             }
         }

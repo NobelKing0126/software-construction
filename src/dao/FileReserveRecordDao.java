@@ -21,12 +21,9 @@ public class FileReserveRecordDao implements ReserveRecordDao {
 
     @Override
     public ReserveRecord findById(String id) {
-        for (ReserveRecord record : records) {
-            if (record.getRecordId().equals(id)) {
-                return record;
-            }
-        }
-        return null;
+        return records.stream()
+                .filter(record -> record.getRecordId().equals(id))
+                .findFirst().orElse(null);
     }
 
     @Override
