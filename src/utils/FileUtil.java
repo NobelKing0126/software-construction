@@ -86,31 +86,34 @@ public final class FileUtil {
                 new FileInputStream(file), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                List<String> fields = splitRecord(line, "预约数据文件格式错误。");
-                if ((fields.size() != 8 && fields.size() != 10) || fields.get(0).isEmpty()
-                        || !ids.add(fields.get(0))) {
-                    throw new IOException("预约数据文件格式错误。");
-                }
-                try {
-                    ReserveRecord record = new ReserveRecord(fields.get(0), fields.get(1),
-                            fields.get(2), LocalDateTime.parse(fields.get(3)),
-                            LocalDateTime.parse(fields.get(4)),
-                            LocalDateTime.parse(fields.get(5)),
-                            ReserveStatus.valueOf(fields.get(6)), fields.get(7));
-                    // V3.1 的八字段记录没有审核信息，保留空值，不补造历史时间。
-                    if (fields.size() == 10) {
-                        record.setRejectReason(fields.get(8));
-                        if (!fields.get(9).isEmpty()) {
-                            record.setAuditTime(LocalDateTime.parse(fields.get(9)));
-                        }
-                    }
-                    records.add(record);
-                } catch (RuntimeException e) {
-                    throw new IOException("预约数据文件格式错误。", e);
-                }
+                records.add(parseReserveRecord(line, ids));
             }
         }
         return records;
+    }
+
+    private static ReserveRecord parseReserveRecord(String line, Set<String> ids) throws IOException {
+        List<String> fields = splitRecord(line, "预约数据文件格式错误。");
+        if ((fields.size() != 8 && fields.size() != 10) || fields.get(0).isEmpty()
+                || !ids.add(fields.get(0))) {
+            throw new IOException("预约数据文件格式错误。");
+        }
+        try {
+            ReserveRecord record = new ReserveRecord(fields.get(0), fields.get(1),
+                    fields.get(2), LocalDateTime.parse(fields.get(3)),
+                    LocalDateTime.parse(fields.get(4)), LocalDateTime.parse(fields.get(5)),
+                    ReserveStatus.valueOf(fields.get(6)), fields.get(7));
+            // V3.1 的八字段记录没有审核信息，保留空值，不补造历史时间。
+            if (fields.size() == 10) {
+                record.setRejectReason(fields.get(8));
+                if (!fields.get(9).isEmpty()) {
+                    record.setAuditTime(LocalDateTime.parse(fields.get(9)));
+                }
+            }
+            return record;
+        } catch (RuntimeException e) {
+            throw new IOException("预约数据文件格式错误。", e);
+        }
     }
 
     public static void saveUsers(List<User> users) throws IOException {
@@ -122,14 +125,8 @@ public final class FileUtil {
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(file), StandardCharsets.UTF_8))) {
             for (User user : users) {
-                writer.write(escape(user.getUsername()));
-                writer.write(SEPARATOR);
-                writer.write(escape(user.getPassword()));
-                writer.write(SEPARATOR);
-                writer.write(escape(user.getRole()));
-                writer.write(SEPARATOR);
-                writer.write(user.getRegisterTime().toString());
-                writer.newLine();
+                writeRecord(writer, user.getUsername(), user.getPassword(), user.getRole(),
+                        user.getRegisterTime().toString());
             }
         }
     }
@@ -143,18 +140,8 @@ public final class FileUtil {
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(file), StandardCharsets.UTF_8))) {
             for (CampusResource resource : resources) {
-                writer.write(escape(resource.getId()));
-                writer.write(SEPARATOR);
-                writer.write(escape(resource.getName()));
-                writer.write(SEPARATOR);
-                writer.write(escape(resource.getType()));
-                writer.write(SEPARATOR);
-                writer.write(escape(resource.getStatus()));
-                writer.write(SEPARATOR);
-                writer.write(escape(resource.getLocation()));
-                writer.write(SEPARATOR);
-                writer.write(escape(resource.getDescription()));
-                writer.newLine();
+                writeRecord(writer, resource.getId(), resource.getName(), resource.getType(),
+                        resource.getStatus(), resource.getLocation(), resource.getDescription());
             }
         }
     }
@@ -168,28 +155,24 @@ public final class FileUtil {
         try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
                 new FileOutputStream(file), StandardCharsets.UTF_8))) {
             for (ReserveRecord record : records) {
-                writer.write(escape(record.getRecordId()));
-                writer.write(SEPARATOR);
-                writer.write(escape(record.getResourceId()));
-                writer.write(SEPARATOR);
-                writer.write(escape(record.getApplicantUsername()));
-                writer.write(SEPARATOR);
-                writer.write(record.getApplyTime().toString());
-                writer.write(SEPARATOR);
-                writer.write(record.getReserveStartTime().toString());
-                writer.write(SEPARATOR);
-                writer.write(record.getReserveEndTime().toString());
-                writer.write(SEPARATOR);
-                writer.write(record.getStatus().name());
-                writer.write(SEPARATOR);
-                writer.write(escape(record.getRemark() == null ? "" : record.getRemark()));
-                writer.write(SEPARATOR);
-                writer.write(escape(record.getRejectReason() == null ? "" : record.getRejectReason()));
-                writer.write(SEPARATOR);
-                writer.write(record.getAuditTime() == null ? "" : record.getAuditTime().toString());
-                writer.newLine();
+                writeRecord(writer, record.getRecordId(), record.getResourceId(),
+                        record.getApplicantUsername(), record.getApplyTime().toString(),
+                        record.getReserveStartTime().toString(), record.getReserveEndTime().toString(),
+                        record.getStatus().name(), record.getRemark() == null ? "" : record.getRemark(),
+                        record.getRejectReason() == null ? "" : record.getRejectReason(),
+                        record.getAuditTime() == null ? "" : record.getAuditTime().toString());
             }
         }
+    }
+
+    private static void writeRecord(BufferedWriter writer, String... fields) throws IOException {
+        for (int i = 0; i < fields.length; i++) {
+            if (i > 0) {
+                writer.write(SEPARATOR);
+            }
+            writer.write(escape(fields[i]));
+        }
+        writer.newLine();
     }
 
     private static String escape(String value) {

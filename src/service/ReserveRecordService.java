@@ -58,33 +58,12 @@ public class ReserveRecordService {
     public Result<ReserveRecord> submitReserve(User user, String resourceId,
             LocalDateTime start, LocalDateTime end, String remark) {
         ensureStudent(user);
-        CampusResource resource = resources.findById(resourceId);
-        if (resource == null) {
-            throw new ResourceNotFoundException("资源不存在，无法提交预约。");
-        }
-        if (!start.isBefore(end)) {
-            throw new BusinessException("开始时间必须早于结束时间。");
-        }
-        if (end.isBefore(LocalDateTime.now())) {
-            throw new BusinessException("结束时间不能早于当前时间。");
-        }
-        if (hasPassConflict(resourceId, start, end)) {
-            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
-        }
-        if (!"AVAILABLE".equals(resource.getStatus())) {
-            throw new ResourceOccupiedException("资源当前不可预约。");
-        }
+        validateSubmission(resourceId, start, end);
 
         String recordId = generateReserveId();
         ReserveRecord record = new ReserveRecord(recordId, resourceId, user.getUsername(),
                 LocalDateTime.now(), start, end, ReserveStatus.PENDING, remark);
-        records.add(record);
-        try {
-            saveReserves();
-        } catch (BusinessException e) {
-            records.remove(record);
-            throw e;
-        }
+        addAndSaveReserve(record);
         return Result.success("预约申请提交成功，记录 ID：" + recordId, record);
     }
 
@@ -104,19 +83,8 @@ public class ReserveRecordService {
         }
         requireTransition(record.getStatus(), ReserveStatus.CANCEL);
 
-        boolean wasPass = record.getStatus() == ReserveStatus.PASS;
-        CampusResource resource = null;
-        if (wasPass) {
-            resource = resources.findById(record.getResourceId());
-            if (resource == null) {
-                throw new ResourceNotFoundException("关联资源不存在，无法取消已通过预约。");
-            }
-        }
-        boolean release = wasPass && records.findAll().stream().noneMatch(other -> other != record
-                && record.getResourceId().equals(other.getResourceId())
-                && other.getStatus() == ReserveStatus.PASS);
-        updateReserveStatus(record, ReserveStatus.CANCEL,
-                release ? resource : null, "AVAILABLE", null);
+        CampusResource resource = findResourceToRelease(record);
+        updateReserveStatus(record, ReserveStatus.CANCEL, resource, "AVAILABLE", null);
         return Result.success("预约取消成功。", record);
     }
 
@@ -151,19 +119,7 @@ public class ReserveRecordService {
             return Result.success("预约审核驳回。", record);
         }
 
-        CampusResource resource = resources.findById(record.getResourceId());
-        if (resource == null) {
-            throw new ResourceNotFoundException("关联资源不存在，无法审核通过。");
-        }
-        if (hasPassConflict(record.getResourceId(),
-                record.getReserveStartTime(), record.getReserveEndTime())) {
-            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
-        }
-        boolean otherPass = hasPassRecord(record.getResourceId());
-        if (!"AVAILABLE".equals(resource.getStatus())
-                && !(otherPass && "OCCUPIED".equals(resource.getStatus()))) {
-            throw new ResourceOccupiedException("资源当前不可审核通过。");
-        }
+        CampusResource resource = requireApprovableResource(record);
         updateReserveStatus(record, ReserveStatus.PASS, resource, "OCCUPIED", "");
         return Result.success("预约审核通过。", record);
     }
@@ -190,6 +146,66 @@ public class ReserveRecordService {
             throw new BusinessException("查询条件无效，请输入 1、2 或 3。");
         }
         return collectReserveQuery(matched, "预约查询成功。", "未找到匹配的预约记录。");
+    }
+
+    private void validateSubmission(String resourceId, LocalDateTime start, LocalDateTime end) {
+        CampusResource resource = resources.findById(resourceId);
+        if (resource == null) {
+            throw new ResourceNotFoundException("资源不存在，无法提交预约。");
+        }
+        if (!start.isBefore(end)) {
+            throw new BusinessException("开始时间必须早于结束时间。");
+        }
+        if (end.isBefore(LocalDateTime.now())) {
+            throw new BusinessException("结束时间不能早于当前时间。");
+        }
+        if (hasPassConflict(resourceId, start, end)) {
+            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
+        }
+        if (!"AVAILABLE".equals(resource.getStatus())) {
+            throw new ResourceOccupiedException("资源当前不可预约。");
+        }
+    }
+
+    private void addAndSaveReserve(ReserveRecord record) {
+        records.add(record);
+        try {
+            saveReserves();
+        } catch (BusinessException e) {
+            records.remove(record);
+            throw e;
+        }
+    }
+
+    private CampusResource requireApprovableResource(ReserveRecord record) {
+        CampusResource resource = resources.findById(record.getResourceId());
+        if (resource == null) {
+            throw new ResourceNotFoundException("关联资源不存在，无法审核通过。");
+        }
+        if (hasPassConflict(record.getResourceId(),
+                record.getReserveStartTime(), record.getReserveEndTime())) {
+            throw new ResourceOccupiedException("预约时间冲突：该资源已有已通过的预约。");
+        }
+        boolean otherPass = hasPassRecord(record.getResourceId());
+        if (!"AVAILABLE".equals(resource.getStatus())
+                && !(otherPass && "OCCUPIED".equals(resource.getStatus()))) {
+            throw new ResourceOccupiedException("资源当前不可审核通过。");
+        }
+        return resource;
+    }
+
+    private CampusResource findResourceToRelease(ReserveRecord record) {
+        if (record.getStatus() != ReserveStatus.PASS) {
+            return null;
+        }
+        CampusResource resource = resources.findById(record.getResourceId());
+        if (resource == null) {
+            throw new ResourceNotFoundException("关联资源不存在，无法取消已通过预约。");
+        }
+        boolean otherPass = records.findAll().stream().anyMatch(other -> other != record
+                && record.getResourceId().equals(other.getResourceId())
+                && other.getStatus() == ReserveStatus.PASS);
+        return otherPass ? null : resource;
     }
 
     private Result<List<ReserveRecord>> collectReserveQuery(

@@ -1225,3 +1225,566 @@ PASS cancel-pending-reserve checks=8
 reserve.txt = "item|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|备注|原有原因\\|\\\\|2026-01-01T00:00\r\n"
 resource.txt = "r|资源r|ROOM|AVAILABLE|一号楼|安静\r\n"
 user.txt = "admin|password|admin|2026-01-01T00:00\r\nalice|password|student|2026-01-01T00:00\r\nbob|password|student|2026-01-01T00:00\r\n"
+
+十、V3.2 可读性补充整理：精简入口与业务流程调用
+
+本节记录在 e3c0132ef21ef5e1909ff0f9aaf3e1136a0834c9 基础上，按后续确认的“精简入口类，并让较长业务方法按校验→执行→保存组织”进行的补充整理。前九节保留首次任务11实现时的实际记录；本次结构调整与验证以本节为准。业务规则、菜单、返回格式及文件格式均保持 V3.2 行为。
+
+1. 修改内容与具体收益
+
+SystemMain 从304行缩为8行，main 中只调用 ConsoleApplication.start()。原控制台实现在现有 ui.console 包内归入 ConsoleApplication，不新增分层。start 按 loadUsers、loadResources、loadReserves 的顺序加载，再直接装配三个 Service 并运行；各数据源失败提示保持原文，失败后不继续加载后面的文件。
+ConsoleApplication.run 按“展示主菜单→读取选项→调用登录/注册完整流程”组织。showMainMenu 负责主菜单输出，login 包含凭据输入、调用 Service 及登录成功后进入资源菜单，register 包含注册输入及结果展示。资源和预约菜单、输入方法继续保留，编号、权限、提示及输入顺序不变。
+ReserveRecordService.submitReserve 依次调用 ensureStudent、validateSubmission，创建记录后调用 addAndSaveReserve，再返回结果。申请校验集中为一个完整步骤，添加、保存及失败移除仍放在一起。auditReserve 通过 requireApprovableResource 完成资源存在、时间冲突和资源状态检查；cancelReserve 通过 findResourceToRelease 判断是否需释放资源。保留原校验先后顺序，特别是取消 PASS 时先检查关联资源存在，再判断是否还有其他 PASS。
+FileUtil.loadReserves 负责逐行读取，parseReserveRecord 负责单条记录的字段检查、8/10字段兼容与转换；三个保存方法复用 writeRecord 处理分隔符、转义和换行，每种数据只列出自己的字段顺序。FileUtil 从248行减为231行。
+ReserveRecordService 总行数因命名清楚的职责方法从299行变为315行，主要业务入口更短，校验细节可按方法名继续阅读。本次以入口职责和流程顺序清楚为目的。较短的 UserService、ResourceService、Result 保留原结构；双文件保存与恢复仍保持在同一方法中，便于完整理解恢复上下文。
+SystemMain 与 ConsoleApplication 都属于原 ui.console 包；没有创建 MainView、AdminView、StudentView、Controller、工厂、Service/DAO单例或 ResourceStatus。原 UML/XMI 保留。用户/资源CRUD接口、学生越权时的null参数调用、状态机、审核元数据恢复和多PASS释放规则不变。
+
+2. 验证方法与真实记录
+
+仍使用 C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin 的 javac.exe、java.exe（Temurin JDK 8，1.8.0_504）。先冻结编译整理前26个源文件，再递归编译整理后27个源文件，均指定 -encoding UTF-8。所有 shell 命令使用 rtk 前缀。
+全部测试脚本、编译产物和场景数据位于本次新建的项目内 .v32-readability-check 目录；Java 工作目录为各自场景子目录。前后使用同一套输入，比较 stdout、stderr、退出码和三个数据文件。本次没有新增功能差异，只允许规范化实际生成的随机UUID和当前时间，固定测试日期不变。
+以下为本次实际进程记录生成的证据。测试结束后核对绝对路径并清理本次临时目录，原用户文件和原测试目录均保留；未制作截图。本次提交号见 Git 版本记录。
+
+V3.2 后续可读性整理的真实差分回归记录
+本次仅验证结构整理前后行为不变。所有运行在项目新建的 .v32-readability-check 内独立场景目录完成，Java cwd 指向对应测试目录；未访问根目录已有数据。
+工具：C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin\javac.exe 和同目录 java.exe；javac -encoding UTF-8 递归编译全部源文件，java -Dfile.encoding=UTF-8 -cp <编译目录> ui.console.SystemMain。
+整理前编译：源文件数 26，stdout=""，stderr=""，退出码=0。
+整理后编译：源文件数 27，stdout=""，stderr=""，退出码=0。
+整理前、整理后各 27 个场景、32 次 Java 进程，共 64 次；每次 stderr 为空字符串，退出码均为 0。32 对运行的 stdin、完整 stdout、stderr、退出码、运行前后 user.txt/resource.txt/reserve.txt 快照全部一致（仅将真实生成 UUID 和本次当前时间作映射）。异常差异数为 0。
+非确定值处理：从实际输出和文件建立 UUID 一一映射，保留重复引用的一致性；从实际运行时间窗内采集生成时间的确切值并映射为 CURRENT_TIME。测试输入中预置的 2026-01-01、2026-01-02 和 2020/2030 年固定时间不参加替换。没有规范化菜单、字段、提示或顺序，也没有允许功能性差异。
+公共初始用户：admin/password/admin、alice/password/student、bob/password/student，注册时间均为2026-01-01T00:00。公共资源原文：r-a|自习室|ROOM|AVAILABLE|一号楼|安静；r-b|会议室|ROOM|AVAILABLE|二号楼|讨论；r-c|机房|LAB|DISABLED|三号楼|电脑。
+下文输入使用 JSON 数组，每个元素是 stdin 的一行，末尾另有换行。stdout 摘录取整理后实际原文，省略重复菜单与重复相同行；全部原始 stdout 已参与严格比较。两版文件结果分别列出，其中 JSON 的 \n/\r 表示真实换行/回车，而 \\n/\\r 表示持久化转义文本。
+
+01-login-register-errors：
+初始 reserve.txt：""
+输入 1：["bad", "2", "charlie", "123", "2", "charlie", "password", "2", "charlie", "password", "1", "missing", "password", "1", "charlie", "wrong", "1", "charlie", "password", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：无效选项，请重新选择。
+  请选择：请输入注册账号：请输入注册密码：密码不能为空且长度不能少于6位。
+  请选择：请输入注册账号：请输入注册密码：注册成功。
+  请选择：请输入注册账号：请输入注册密码：账号已存在，注册失败。
+  请选择：请输入账号：请输入密码：用户不存在，登录失败。
+  请选择：请输入账号：请输入密码：密码错误，登录失败。
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+输入 2：["1", "charlie", "password", "0", "0"]
+整理后 stdout 2 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 user.txt 实际全文："admin|password|admin|2026-01-01T00:00\nalice|password|student|2026-01-01T00:00\nbob|password|student|2026-01-01T00:00\ncharlie|password|student|2026-11-14T22:41:08.415\n"
+整理前文件结果：user.txt 如上；其余文件相对初始内容未变化。
+整理后最终 user.txt 实际全文："admin|password|admin|2026-01-01T00:00\nalice|password|student|2026-01-01T00:00\nbob|password|student|2026-01-01T00:00\ncharlie|password|student|2026-11-14T22:42:41.961\n"
+整理后文件结果：user.txt 如上；其余文件相对初始内容未变化。
+
+02-resource-crud：
+初始 reserve.txt：""
+输入 1：["1", "admin", "password", "2", "1", "研讨室", "ROOM", "四号楼", "讨论|备注\\", "5", "自习", "6", "r-a", "3", "missing", "3", "r-a", "自习室二", "ROOM", "五号楼", "DISABLED", "4", "r-b", "2", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询全部资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+  CampusResource{id='r-b', name='会议室', type='ROOM', status='AVAILABLE', location='二号楼', description='讨论'}
+  CampusResource{id='r-c', name='机房', type='LAB', status='DISABLED', location='三号楼', description='电脑'}
+  请选择：请输入资源名称：请输入资源类型：请输入资源位置：请输入资源描述：资源新增成功，资源 ID：81c21bd2-83fc-4164-8bbc-7f55673cfce0
+  CampusResource{id='81c21bd2-83fc-4164-8bbc-7f55673cfce0', name='研讨室', type='ROOM', status='AVAILABLE', location='四号楼', description='讨论|备注\'}
+  请选择：请输入资源名称关键词：按名称查询资源成功。
+  请选择：请输入资源 ID：查询资源成功。
+  请选择：请输入要修改的资源 ID：资源不存在，无法修改。
+  请选择：请输入要修改的资源 ID：请输入新的资源名称：请输入新的资源类型：请输入新的资源位置：请输入新的资源状态：资源修改成功。
+  CampusResource{id='r-a', name='自习室二', type='ROOM', status='DISABLED', location='五号楼', description='安静'}
+  请选择：请输入要删除的资源 ID：资源删除成功。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+输入 2：["1", "admin", "password", "6", "r-a", "6", "r-b", "0", "0"]
+整理后 stdout 2 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室二', type='ROOM', status='DISABLED', location='五号楼', description='安静'}
+  请选择：请输入资源 ID：未找到该 ID 对应的资源。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 resource.txt 实际全文："r-a|自习室二|ROOM|DISABLED|五号楼|安静\nr-c|机房|LAB|DISABLED|三号楼|电脑\n82207e16-c848-469c-85d8-c0c9ba87c2dc|研讨室|ROOM|AVAILABLE|四号楼|讨论\\|备注\\\\\n"
+整理前文件结果：resource.txt 如上；其余文件相对初始内容未变化。
+整理后最终 resource.txt 实际全文："r-a|自习室二|ROOM|DISABLED|五号楼|安静\nr-c|机房|LAB|DISABLED|三号楼|电脑\n81c21bd2-83fc-4164-8bbc-7f55673cfce0|研讨室|ROOM|AVAILABLE|四号楼|讨论\\|备注\\\\\n"
+整理后文件结果：resource.txt 如上；其余文件相对初始内容未变化。
+
+03-permissions：
+初始 reserve.txt：""
+输入 1：["1", "alice", "password", "1", "2", "3", "4", "7", "8", "9", "13", "5", "自习", "6", "r-c", "99", "0", "1", "admin", "password", "10", "11", "12", "99", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询可预约资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+  CampusResource{id='r-b', name='会议室', type='ROOM', status='AVAILABLE', location='二号楼', description='讨论'}
+  请选择：权限不足，仅管理员可以管理校园资源。
+  请选择：权限不足，仅管理员可以审核或查询全部预约。
+  请选择：请输入资源名称关键词：按名称查询资源成功。
+  请选择：请输入资源 ID：未找到该 ID 对应的资源。
+  请选择：无效选项，请重新选择。
+  请选择：权限不足，仅学生可以办理个人预约。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+04-four-transitions：
+初始 reserve.txt："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\nreject|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\npending|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+输入 1：["1", "admin", "password", "13", "8", "pass", "1", "8", "reject", "2", "资料不完整|请补充\\附件", "13", "0", "1", "alice", "password", "11", "12", "pending", "12", "pass", "11", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询待审核预约成功。
+  ReserveRecord{recordId='pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+  ReserveRecord{recordId='reject', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+  ReserveRecord{recordId='pending', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：预约审核通过。
+  ReserveRecord{recordId='pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PASS, remark='', rejectReason='', auditTime=2026-11-14T22:42:48.441}
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：预约审核驳回。
+  ReserveRecord{recordId='reject', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='', rejectReason='资料不完整|请补充\附件', auditTime=2026-11-14T22:42:48.444}
+  请选择：查询我的预约成功。
+  请选择：请输入要取消的预约记录 ID：预约取消成功。
+  ReserveRecord{recordId='pending', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=未记录}
+  ReserveRecord{recordId='pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-11-14T22:42:48.441}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+输入 2：["1", "alice", "password", "11", "0", "1", "admin", "password", "13", "6", "r-a", "0", "0"]
+整理后 stdout 2 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询我的预约成功。
+  ReserveRecord{recordId='pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-11-14T22:42:48.441}
+  ReserveRecord{recordId='reject', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='', rejectReason='资料不完整|请补充\附件', auditTime=2026-11-14T22:42:48.444}
+  ReserveRecord{recordId='pending', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=未记录}
+  请选择：当前没有待审核预约。
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 reserve.txt 实际全文："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-11-14T22:41:15.196\nreject|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||资料不完整\\|请补充\\\\附件|2026-11-14T22:41:15.200\npending|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||\n"
+整理前文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 reserve.txt 实际全文："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-11-14T22:42:48.441\nreject|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||资料不完整\\|请补充\\\\附件|2026-11-14T22:42:48.444\npending|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||\n"
+整理后文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+
+05-illegal-state-and-owner：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|\nreject|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||已驳回|2026-01-02T10:00\ncancel|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|\npending|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+输入 1：["1", "admin", "password", "8", "pass", "1", "8", "pass", "2", "资料不完整|请补充\\附件", "8", "reject", "1", "8", "reject", "2", "资料不完整|请补充\\附件", "8", "cancel", "1", "8", "cancel", "2", "资料不完整|请补充\\附件", "8", "pending", "9", "8", "missing", "1", "8", "pending", "2", "  ", "0", "1", "bob", "password", "12", "pass", "0", "1", "alice", "password", "12", "reject", "12", "cancel", "12", "missing", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：该预约已处理，不能重复审核。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：该预约已处理，不能重复审核。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：审核选项无效，请输入 1 或 2。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：预约记录不存在，无法审核。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：驳回原因不能为空。
+  请选择：请输入要取消的预约记录 ID：只能取消本人的预约。
+  请选择：请输入要取消的预约记录 ID：当前预约状态不可取消。
+  请选择：请输入要取消的预约记录 ID：预约记录不存在，无法取消。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+06-time-input-conflict：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|\n"
+输入 1：["1", "alice", "password", "10", "missing", "2030-12-14 10:00", "2030-12-14 12:00", "x", "10", "r-b", "2030-12-14 12:00", "2030-12-14 10:00", "bad-order", "10", "r-b", "2020-12-14 10:00", "2020-12-14 12:00", "expired", "10", "r-b", "2030-12-14 10:00", "bad-time", "10", "r-a", "2030-12-14 11:00", "2030-12-14 13:00", "overlap", "10", "r-a", "2030-12-14 12:00", "2030-12-14 13:00", "touch", "10", "r-c", "2030-12-14 10:00", "2030-12-14 12:00", "disabled", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：资源不存在，无法提交预约。
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：开始时间必须早于结束时间。
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：结束时间不能早于当前时间。
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：时间格式错误，请使用 yyyy-MM-dd HH:mm。
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：预约时间冲突：该资源已有已通过的预约。
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：资源当前不可预约。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+07-multi-pass-boundary-release：
+初始 reserve.txt："first|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\noverlap|r-a|alice|2026-01-01T00:00|2030-12-14T11:00|2030-12-14T13:00|PENDING|\ntouch|r-a|alice|2026-01-01T00:00|2030-12-14T12:00|2030-12-14T13:00|PENDING|\n"
+输入 1：["1", "admin", "password", "8", "first", "1", "8", "overlap", "1", "8", "touch", "1", "0", "1", "alice", "password", "12", "first", "0", "1", "admin", "password", "6", "r-a", "0", "1", "alice", "password", "12", "touch", "0", "1", "admin", "password", "6", "r-a", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：预约审核通过。
+  ReserveRecord{recordId='first', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PASS, remark='', rejectReason='', auditTime=2026-11-14T22:42:49.756}
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：预约时间冲突：该资源已有已通过的预约。
+  ReserveRecord{recordId='touch', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T12:00, reserveEndTime=2030-12-14T13:00, status=PASS, remark='', rejectReason='', auditTime=2026-11-14T22:42:49.759}
+  请选择：请输入要取消的预约记录 ID：预约取消成功。
+  ReserveRecord{recordId='first', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-11-14T22:42:49.756}
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='OCCUPIED', location='一号楼', description='安静'}
+  ReserveRecord{recordId='touch', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T12:00, reserveEndTime=2030-12-14T13:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-11-14T22:42:49.759}
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 reserve.txt 实际全文："first|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-11-14T22:41:16.668\noverlap|r-a|alice|2026-01-01T00:00|2030-12-14T11:00|2030-12-14T13:00|PENDING|||\ntouch|r-a|alice|2026-01-01T00:00|2030-12-14T12:00|2030-12-14T13:00|CANCEL|||2026-11-14T22:41:16.671\n"
+整理前文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 reserve.txt 实际全文："first|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-11-14T22:42:49.756\noverlap|r-a|alice|2026-01-01T00:00|2030-12-14T11:00|2030-12-14T13:00|PENDING|||\ntouch|r-a|alice|2026-01-01T00:00|2030-12-14T12:00|2030-12-14T13:00|CANCEL|||2026-11-14T22:42:49.759\n"
+整理后文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+
+08-pass-guard-and-missing-resource：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|\npending-b|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\nmissing-resource|deleted|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|\n"
+输入 1：["1", "admin", "password", "4", "r-a", "3", "r-a", "自习室", "ROOM", "一号楼", "AVAILABLE", "4", "r-b", "8", "pending-b", "1", "8", "pending-b", "2", "资料不完整|请补充\\附件", "0", "1", "alice", "password", "12", "missing-resource", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要删除的资源 ID：存在已通过预约，不能删除资源。
+  请选择：请输入要修改的资源 ID：请输入新的资源名称：请输入新的资源类型：请输入新的资源位置：请输入新的资源状态：资源存在已通过预约，状态必须保持 OCCUPIED。
+  请选择：请输入要删除的资源 ID：资源删除成功。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：关联资源不存在，无法审核通过。
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：预约审核驳回。
+  ReserveRecord{recordId='pending-b', resourceId='r-b', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='', rejectReason='资料不完整|请补充\附件', auditTime=2026-11-14T22:42:50.096}
+  请选择：请输入要取消的预约记录 ID：关联资源不存在，无法取消已通过预约。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 resource.txt 实际全文："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理前最终 reserve.txt 实际全文："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\npending-b|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||资料不完整\\|请补充\\\\附件|2026-11-14T22:41:16.997\nmissing-resource|deleted|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\n"
+整理前文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 resource.txt 实际全文："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理后最终 reserve.txt 实际全文："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\npending-b|r-b|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||资料不完整\\|请补充\\\\附件|2026-11-14T22:42:50.096\nmissing-resource|deleted|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\n"
+整理后文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+
+09-occupied-disabled-audit：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："busy|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\ndisabled|r-c|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+输入 1：["1", "admin", "password", "8", "busy", "1", "8", "disabled", "1", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：资源当前不可审核通过。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+10-query-empty-invalid：
+初始 reserve.txt：""
+输入 1：["1", "admin", "password", "7", "13", "9", "1", "missing", "9", "2", "missing", "9", "3", "CANCEL", "9", "3", "bad", "9", "4", "x", "9", "1", "", "0", "1", "alice", "password", "11", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：当前没有预约记录。
+  请选择：当前没有待审核预约。
+  请选择：查询条件（1. 资源 ID  2. 申请人  3. 预约状态）：请输入查询值：未找到匹配的预约记录。
+  请选择：查询条件（1. 资源 ID  2. 申请人  3. 预约状态）：请输入查询值：预约状态无效，请输入 PENDING、PASS、REJECT 或 CANCEL。
+  请选择：查询条件（1. 资源 ID  2. 申请人  3. 预约状态）：请输入查询值：查询条件无效，请输入 1、2 或 3。
+  请选择：查询条件（1. 资源 ID  2. 申请人  3. 预约状态）：请输入查询值：预约查询值不能为空。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+11-missing-submit-restart：
+初始 reserve.txt：缺失
+输入 1：["1", "alice", "password", "10", "r-a", "2030-12-14 10:00", "2030-12-14 12:00", "备注|含\\斜杠", "11", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：预约申请提交成功，记录 ID：250f40cb-304a-48b1-974e-66a50c0af74e
+  ReserveRecord{recordId='250f40cb-304a-48b1-974e-66a50c0af74e', resourceId='r-a', applicantUsername='alice', applyTime=2026-11-14T22:42:56.029, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='备注|含\斜杠', rejectReason='', auditTime=未记录}
+  请选择：查询我的预约成功。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+输入 2：["1", "alice", "password", "11", "0", "0"]
+整理后 stdout 2 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询我的预约成功。
+  ReserveRecord{recordId='250f40cb-304a-48b1-974e-66a50c0af74e', resourceId='r-a', applicantUsername='alice', applyTime=2026-11-14T22:42:56.029, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='备注|含\斜杠', rejectReason='', auditTime=未记录}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 reserve.txt 实际全文："afd07911-34e9-4c60-88ce-d8a7bc45cbad|r-a|alice|2026-11-14T22:41:22.964|2030-12-14T10:00|2030-12-14T12:00|PENDING|备注\\|含\\\\斜杠||\n"
+整理前文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 reserve.txt 实际全文："250f40cb-304a-48b1-974e-66a50c0af74e|r-a|alice|2026-11-14T22:42:56.029|2030-12-14T10:00|2030-12-14T12:00|PENDING|备注\\|含\\\\斜杠||\n"
+整理后文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+
+12-new-ten-field-escape：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："new-reject|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||说明\\|需补充\\\\附件\\n下一行\\r回车|2026-01-02T10:00\nnew-pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||2026-01-02T10:30\n"
+输入 1：["1", "alice", "password", "11", "12", "new-pass", "11", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询我的预约成功。
+  ReserveRecord{recordId='new-reject', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='', rejectReason='说明|需补充\附件
+  ReserveRecord{recordId='new-pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PASS, remark='', rejectReason='', auditTime=2026-01-02T10:30}
+  请选择：请输入要取消的预约记录 ID：预约取消成功。
+  ReserveRecord{recordId='new-pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-01-02T10:30}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+输入 2：["1", "alice", "password", "11", "0", "0"]
+整理后 stdout 2 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：查询我的预约成功。
+  ReserveRecord{recordId='new-reject', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='', rejectReason='说明|需补充\附件
+  ReserveRecord{recordId='new-pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=2026-01-02T10:30}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 resource.txt 实际全文："r-a|自习室|ROOM|AVAILABLE|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理前最终 reserve.txt 实际全文："new-reject|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||说明\\|需补充\\\\附件\\n下一行\\r回车|2026-01-02T10:00\nnew-pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-01-02T10:30\n"
+整理前文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 resource.txt 实际全文："r-a|自习室|ROOM|AVAILABLE|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理后最终 reserve.txt 实际全文："new-reject|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT||说明\\|需补充\\\\附件\\n下一行\\r回车|2026-01-02T10:00\nnew-pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|CANCEL|||2026-01-02T10:30\n"
+整理后文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+
+13-past-pass-cancel：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："past|r-a|alice|2026-01-01T00:00|2020-12-14T10:00|2020-12-14T12:00|PASS|\n"
+输入 1：["1", "alice", "password", "12", "past", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要取消的预约记录 ID：预约取消成功。
+  ReserveRecord{recordId='past', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2020-12-14T10:00, reserveEndTime=2020-12-14T12:00, status=CANCEL, remark='', rejectReason='', auditTime=未记录}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 resource.txt 实际全文："r-a|自习室|ROOM|AVAILABLE|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理前最终 reserve.txt 实际全文："past|r-a|alice|2026-01-01T00:00|2020-12-14T10:00|2020-12-14T12:00|CANCEL|||\n"
+整理前文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 resource.txt 实际全文："r-a|自习室|ROOM|AVAILABLE|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+整理后最终 reserve.txt 实际全文："past|r-a|alice|2026-01-01T00:00|2020-12-14T10:00|2020-12-14T12:00|CANCEL|||\n"
+整理后文件结果：resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+
+14-corrupt-few：
+初始 reserve.txt："broken|record\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+14-corrupt-nine：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING||reason\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+14-corrupt-audit-time：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|||bad\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+14-corrupt-escape：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING||bad\\q|\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+14-corrupt-duplicate：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\np-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+14-corrupt-status：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|UNKNOWN|\n"
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  预约数据加载失败，请检查 reserve.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+15-load-user-first：
+初始 user.txt："broken\n"
+初始 resource.txt：缺失
+初始 reserve.txt：缺失
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  用户数据加载失败，请检查 user.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+16-load-resource-second：
+初始 resource.txt："broken\n"
+初始 reserve.txt：缺失
+输入 1：["0"]
+整理后 stdout 1 摘录：
+  资源数据加载失败，请检查 resource.txt。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+17-load-all-missing：
+初始 user.txt：缺失
+初始 resource.txt：缺失
+初始 reserve.txt：缺失
+输入 1：["0"]
+整理后 stdout 1 摘录：
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 user.txt 实际全文：""
+整理前最终 resource.txt 实际全文：""
+整理前最终 reserve.txt 实际全文：""
+整理前文件结果：user.txt, resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 user.txt 实际全文：""
+整理后最终 resource.txt 实际全文：""
+整理后最终 reserve.txt 实际全文：""
+整理后文件结果：user.txt, resource.txt, reserve.txt 如上；其余文件相对初始内容未变化。
+
+18-save-failure-reserve：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+故障注入：本场景 reserve.txt 设置 Windows 只读；每轮结束后恢复该测试文件属性。
+输入 1：["1", "admin", "password", "8", "p-1", "1", "7", "6", "r-a", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：预约数据保存失败，请检查 reserve.txt。
+  请选择：查询全部预约成功。
+  ReserveRecord{recordId='p-1', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+18-save-failure-resource：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+故障注入：本场景 resource.txt 设置 Windows 只读；每轮结束后恢复该测试文件属性。
+输入 1：["1", "admin", "password", "8", "p-1", "1", "7", "6", "r-a", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：资源数据保存失败，请检查 resource.txt。
+  请选择：查询全部预约成功。
+  ReserveRecord{recordId='p-1', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='AVAILABLE', location='一号楼', description='安静'}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前最终 reserve.txt 实际全文："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|||\n"
+整理前文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+整理后最终 reserve.txt 实际全文："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|||\n"
+整理后文件结果：reserve.txt 如上；其余文件相对初始内容未变化。
+
+19-reject-save-failure：
+初始 reserve.txt："p-1|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\n"
+故障注入：本场景 reserve.txt 设置 Windows 只读；每轮结束后恢复该测试文件属性。
+输入 1：["1", "admin", "password", "8", "p-1", "2", "资料不完整|请补充\\附件", "7", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：预约数据保存失败，请检查 reserve.txt。
+  请选择：查询全部预约成功。
+  ReserveRecord{recordId='p-1', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PENDING, remark='', rejectReason='', auditTime=未记录}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+20-cancel-save-failure：
+初始 resource.txt："r-a|自习室|ROOM|OCCUPIED|一号楼|安静\nr-b|会议室|ROOM|AVAILABLE|二号楼|讨论\nr-c|机房|LAB|DISABLED|三号楼|电脑\n"
+初始 reserve.txt："pass|r-a|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||2026-01-02T10:00\n"
+故障注入：本场景 resource.txt 设置 Windows 只读；每轮结束后恢复该测试文件属性。
+输入 1：["1", "alice", "password", "12", "pass", "11", "0", "1", "admin", "password", "6", "r-a", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入要取消的预约记录 ID：资源数据保存失败，请检查 resource.txt。
+  请选择：查询我的预约成功。
+  ReserveRecord{recordId='pass', resourceId='r-a', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=PASS, remark='', rejectReason='', auditTime=2026-01-02T10:00}
+  请选择：请输入资源 ID：查询资源成功。
+  CampusResource{id='r-a', name='自习室', type='ROOM', status='OCCUPIED', location='一号楼', description='安静'}
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+21-submit-save-failure：
+初始 reserve.txt：""
+故障注入：本场景 reserve.txt 设置 Windows 只读；每轮结束后恢复该测试文件属性。
+输入 1：["1", "alice", "password", "10", "r-a", "2030-12-14 10:00", "2030-12-14 12:00", "failure", "11", "0", "0"]
+整理后 stdout 1 摘录：
+  请选择：请输入账号：请输入密码：登录成功，欢迎使用校园资源预约系统！
+  请选择：请输入可预约资源 ID：请输入开始时间（yyyy-MM-dd HH:mm）：请输入结束时间（yyyy-MM-dd HH:mm）：请输入备注（可留空）：预约数据保存失败，请检查 reserve.txt。
+  请选择：当前没有预约记录。
+前后本次 stderr=""、退出码=0；输入和完整输出对照一致。
+整理前文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+整理后文件结果：三个文件相对本场景初始内容均未变化（缺失状态也参与比较）。
+
+对照结论：登录注册及错误处理、资源 CRUD 与输入顺序、权限提示、审核通过/驳回及原因输入、审核时间显示与保留、四条合法流转、重复/越权拦截、待审核列表、时间冲突和相接边界、多个 PASS 的资源释放、PASS 删除保护、已开始预约可取消均保持原行为。
+持久化结论：旧八字段、新十字段及转义记录、空/缺失文件、字段数/时间/转义/重复ID/状态损坏文件均保持原行为；user→resource→reserve 加载失败顺序不变，前阶段失败时后续缺失文件未被创建。预约/资源只读故障的中文提示、内存查询结果和文件恢复均与整理前相同。
+测试问题与处理：首次差分审查把 stdin 中空格格式的固定时间“2030-12-14 10:00”对应的 ISO 输出“2030-12-14T10:00”误判为生成时间，运行时间窗断言主动失败。补充固定输入时间的 ISO 表示后，仅重新比较已有日志即通过；未改源码，未重跑 Java，也未将该固定时间规范化。
+报告依据本次真实运行 JSON 整理，未制作或声称存在截图；测试文件和编译目录在最终核验后按要求清理。
+
+文本格式与服务校验顺序的补充差分验证
+
+同一 FormatChecks.java 分别链接整理前冻结的 baseline-classes 和整理后的 after-classes；测试源文件均用指定 Temurin JDK 8 的 javac.exe -encoding UTF-8 编译。Java 使用指定同目录 java.exe，-Dfile.encoding=UTF-8，工作目录为各版本下四个独立场景目录；stdin 均为空字符串。调用参数、特殊字符输入与实际输出见下文。
+前后两次测试编译均 exit=0、stdout=""、stderr=""；两版本各4个 Java 进程，共8次运行，逐次 exit=0、stderr=""。每版 52 项断言通过。
+直接逐项比较 stdin、原始 stdout、原始 stderr、退出码及所有结果文件的 UTF-8 字节解码内容，四个场景全部完全相同。文件保留 CR/LF；本组没有使用 UUID 或时间规范化。提交保存失败时虽然内部生成 UUID 和当前时间，但新增对象被移除，没有留在输出或文件中。
+失败注入方式：仅在测试中覆盖 FileReserveRecordDao.save()，于写文件前抛 IOException，其他 DAO 行为沿用真实文件实现；未修改生产源码。其余用例直接调用 FileUtil 和 ReserveRecordService。
+下文 FILE/INPUT 行将反斜杠、回车和换行打印为可见转义。stdout 是测试程序实际输出，不将推测内容写成结果。
+
+补充场景：formats
+输入：见 INPUT/CALL 行；stdin=""。
+整理前、后均 exit=0、stderr=""，下列 stdout 完全相同：
+CASE formats; java.version=1.8.0_504
+INPUT special=中|文\\路径\r\n下一行; fixedTime=2026-01-01T00:00
+FILE user.txt=中\\|文\\\\路径\\r\\n下一行|密\\|码\\\\\\r\\n|student|2026-01-01T00:00\r\n
+FILE resource.txt=中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行|AVAILABLE|中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行\r\nempty|空可选字段||AVAILABLE||\r\n
+FILE reserve.txt=中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT|中\\|文\\\\路径\\r\\n下一行|中\\|文\\\\路径\\r\\n下一行|2026-01-01T00:00\r\nnulls|empty|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|||\r\n
+OUTPUT 三类文件特殊字符往返一致；空可选字段保持；null 备注/原因读回空字符串，审核时间读回 null。
+PASS checks=10
+文件结果：前后内容逐字相同；以下 SHA-256 根据保留原始换行的 UTF-8 内容计算。
+reserve.txt SHA-256=a32225c27f89e2b0aa836faaf1ca13a56a9f63811bdaacbf7cb440f2702ac3d9
+resource.txt SHA-256=bd534e30a1994eab2a0062935471c773b82e8d2f822a8f2bc1075b7ed6cc9226
+user.txt SHA-256=cf7f78a3641e08a2d01071f1a8f1c1567f1b2bddfc231c7390555e4a739e900d
+
+补充场景：mixed
+输入：见 INPUT/CALL 行；stdin=""。
+整理前、后均 exit=0、stderr=""，下列 stdout 完全相同：
+CASE mixed; java.version=1.8.0_504
+INPUT old|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT|旧备注\\|\\\\\r\nnew|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT|新备注|拒绝\\|原因\\\\\\r\\n|2026-01-01T00:00\r\n
+OUTPUT ReserveRecord{recordId='old', resourceId='r', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='旧备注|\\', rejectReason='', auditTime=未记录}
+OUTPUT ReserveRecord{recordId='new', resourceId='r', applicantUsername='alice', applyTime=2026-01-01T00:00, reserveStartTime=2030-12-14T10:00, reserveEndTime=2030-12-14T12:00, status=REJECT, remark='新备注', rejectReason='拒绝|原因\\\r\n', auditTime=2026-01-01T00:00}
+FILE reserve.txt=old|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT|旧备注\\|\\\\||\r\nnew|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|REJECT|新备注|拒绝\\|原因\\\\\\r\\n|2026-01-01T00:00\r\n
+PASS checks=7
+文件结果：前后内容逐字相同；以下 SHA-256 根据保留原始换行的 UTF-8 内容计算。
+reserve.txt SHA-256=580540de8a4afcb49ee316a0aaec332dad7d10cc0b6d7bb889f9898c8e6c298a
+
+补充场景：corrupt
+输入：见 INPUT/CALL 行；stdin=""。
+整理前、后均 exit=0、stderr=""，下列 stdout 完全相同：
+CASE corrupt; java.version=1.8.0_504
+INPUT malformed#0=broken|record
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#1=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING||reason
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#2=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING||reason||extra
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#3=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING||reason|bad-time
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#4=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\\q
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#5=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\\
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#6=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|\nid|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+INPUT malformed#7=id|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|UNKNOWN|
+OUTPUT IOException: 预约数据文件格式错误。
+OUTPUT 损坏文件原样保留=true
+PASS checks=16
+文件结果：前后内容逐字相同；以下 SHA-256 根据保留原始换行的 UTF-8 内容计算。
+reserve.txt SHA-256=edaf1877359ce98df985167a8ab58ceb71830dddaca5e4b34acb58f7825db9a1
+
+补充场景：service
+输入：见 INPUT/CALL 行；stdin=""。
+整理前、后均 exit=0、stderr=""，下列 stdout 完全相同：
+CASE service; java.version=1.8.0_504
+CALL submitReserve(alice,r,2030-12-14T10:00,2030-12-14T12:00,备注), reserve.save()抛IOException
+OUTPUT BusinessException: 预约数据保存失败，请检查 reserve.txt。
+OUTPUT 提交失败后内存预约数=0；reserve.txt为空。
+CALL cancelReserve(alice,a), 关联资源missing且同资源存在另一条PASS
+OUTPUT ResourceNotFoundException: 关联资源不存在，无法取消已通过预约。
+CALL auditReserve(admin,p,2,null)
+OUTPUT ParameterEmptyException: 驳回原因不能为空。
+CALL auditReserve(admin,p,2,三个空格)
+OUTPUT ParameterEmptyException: 驳回原因不能为空。
+CALL auditReserve(admin,a,9,null), a已PASS
+OUTPUT InvalidReserveStatusException: 该预约已处理，不能重复审核。
+CALL auditReserve(admin,p,9,null), p为PENDING
+OUTPUT BusinessException: 审核选项无效，请输入 1 或 2。
+OUTPUT 所有失败校验后状态、审核字段、reserve.txt及resource.txt均保持原值。
+FILE reserve.txt=a|missing|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\r\nb|missing|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PASS|||\r\np|r|alice|2026-01-01T00:00|2030-12-14T10:00|2030-12-14T12:00|PENDING|||\r\n
+FILE resource.txt=r|自习室|ROOM|AVAILABLE|一号楼|\r\n
+PASS checks=19
+文件结果：前后内容逐字相同；以下 SHA-256 根据保留原始换行的 UTF-8 内容计算。
+reserve.txt SHA-256=60db00f981c3459eaa0a100caca465959771b8e92dece09f6a4cae3ad5a22cf5
+resource.txt SHA-256=da7502d4eaac395dc3014d8b4ebf1a16b1db0b42c988393ed640a0880186b039
+user.txt SHA-256=cdce1de1eca397ca93aebe15fbaf669e2b76cc52ee0bdbb0258f5c4c9e59c28d
+
+
+3. 提交前核验
+
+独立只读审查未发现本次拆分造成的行为变化。60个非本次修改的原有文件与起始SHA-256一致；原已暂存V2.0报告及其他无关索引条目保持原状。只提交本次四个源码文件和本报告增补，不推送、不新增标签。
