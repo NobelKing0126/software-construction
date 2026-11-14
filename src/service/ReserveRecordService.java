@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import dao.DaoFactory;
 import dao.ReserveRecordDao;
 import dao.ResourceDao;
 import entity.CampusResource;
@@ -28,13 +29,18 @@ import utils.Result;
 public class ReserveRecordService {
     private static final DateTimeFormatter RESERVE_TIME_FORMAT =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    private static final ReserveRecordService INSTANCE = new ReserveRecordService();
 
     private final ReserveRecordDao records;
     private final ResourceDao resources;
 
-    public ReserveRecordService(ReserveRecordDao records, ResourceDao resources) {
-        this.records = records;
-        this.resources = resources;
+    private ReserveRecordService() {
+        this.records = DaoFactory.getReserveRecordDao();
+        this.resources = DaoFactory.getResourceDao();
+    }
+
+    public static ReserveRecordService getInstance() {
+        return INSTANCE;
     }
 
     public void requireStudentAccess(User user) {

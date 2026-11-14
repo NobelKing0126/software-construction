@@ -7,10 +7,24 @@ import java.io.IOException;
 import java.util.List;
 
 public class FileUserDao implements UserDao {
+    private static final FileUserDao INSTANCE;
+
+    static {
+        try {
+            INSTANCE = new FileUserDao();
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final List<User> users;
 
-    public FileUserDao() throws IOException {
+    private FileUserDao() throws IOException {
         users = FileUtil.loadUsers();
+    }
+
+    public static FileUserDao getInstance() {
+        return INSTANCE;
     }
 
     @Override

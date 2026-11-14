@@ -8,10 +8,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FileReserveRecordDao implements ReserveRecordDao {
+    private static final FileReserveRecordDao INSTANCE;
+
+    static {
+        try {
+            INSTANCE = new FileReserveRecordDao();
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final List<ReserveRecord> records;
 
-    public FileReserveRecordDao() throws IOException {
+    private FileReserveRecordDao() throws IOException {
         records = FileUtil.loadReserves();
+    }
+
+    public static FileReserveRecordDao getInstance() {
+        return INSTANCE;
     }
 
     @Override

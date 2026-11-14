@@ -7,6 +7,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import dao.DaoFactory;
 import dao.ReserveRecordDao;
 import dao.ResourceDao;
 import entity.CampusResource;
@@ -21,12 +22,18 @@ import utils.Result;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class ResourceService {
+    private static final ResourceService INSTANCE = new ResourceService();
+
     private final ResourceDao resources;
     private final ReserveRecordDao records;
 
-    public ResourceService(ResourceDao resources, ReserveRecordDao records) {
-        this.resources = resources;
-        this.records = records;
+    private ResourceService() {
+        this.resources = DaoFactory.getResourceDao();
+        this.records = DaoFactory.getReserveRecordDao();
+    }
+
+    public static ResourceService getInstance() {
+        return INSTANCE;
     }
 
     public Result<CampusResource> addResource(User user, String name, String type,

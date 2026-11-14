@@ -8,10 +8,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class FileResourceDao implements ResourceDao {
+    private static final FileResourceDao INSTANCE;
+
+    static {
+        try {
+            INSTANCE = new FileResourceDao();
+        } catch (IOException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final List<CampusResource> resources;
 
-    public FileResourceDao() throws IOException {
+    private FileResourceDao() throws IOException {
         resources = FileUtil.loadResources();
+    }
+
+    public static FileResourceDao getInstance() {
+        return INSTANCE;
     }
 
     @Override

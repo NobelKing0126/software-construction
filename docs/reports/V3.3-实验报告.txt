@@ -1,0 +1,492 @@
+校园资源预约系统 V3.3 实验报告
+任务12：工程优化——饿汉式单例与简单 DAO 工厂
+
+一、任务范围与基线
+
+本次以固定工作目录中的 V3.2 为基线，只调整对象创建与获取方式，不增加业务功能。
+工作目录：C:\Users\22614\Desktop\大三上\软件构造\校园资源预约系统
+基线分支：main
+基线提交：23de649b7caaa87c378ca8d2ec3d425c3daa25c6
+本地 v3.2 标签对象：e1a32185592966313c98310ea513953aea7c0ea8
+本地标签解引用及远程只读查询均确认指向上述基线提交。
+本版本提交号见 Git 版本记录。
+
+已阅读根目录 AGENTS.md、其引用的 RTK.md，以及“实践/项目任务列表.docx”中任务12完整内容、验收标准和任务13、14边界。
+保留 UserDao、ResourceDao、ReserveRecordDao 三个接口，将任务书中 DAO 单例要求落实到对应的 File*Dao 实现。
+没有引入任务13的 MVC 包、Controller、View 或 ResourceStatus，没有引入任务14统计 DTO、排行或报表功能。原 V3.1 UML/XMI 保持不变。
+
+开始前保存了 Git 状态、分支、HEAD、标签、暂存区差异、索引条目及原有69个文件的 SHA-256。
+V2.0 报告原已暂存；V2.1/V2.2 报告和 .vscode/settings.json 原有工作区修改；.v22-isolated-demo、根目录数据、Word及锁文件、截图等均作为原有内容保留。
+冻结方式是在本项目新建的 .v33-verification-20261114 内归档 HEAD 的 src，并先用 JDK 8 编译基线31个 Java 文件。所有新测试脚本、测试文件、日志及 class 文件均在该临时目录内。
+
+二、实际环境与运行方法
+
+实际使用的编译器和运行时：
+C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin\javac.exe
+C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin\java.exe
+
+版本命令实际输出：
+javac 1.8.0_504
+openjdk version "1.8.0_504"
+OpenJDK Runtime Environment (Temurin)(build 1.8.0_504-b01)
+OpenJDK 64-Bit Server VM (Temurin)(build 25.504-b01, mixed mode)
+两个 -version 命令均退出0；版本信息由工具写入 stderr。
+
+编译递归收集 src 下全部 *.java，传给上述 javac，参数为 -encoding UTF-8 -d <隔离classes目录>。
+V3.2：31个源文件，退出0，stdout与stderr均为空。
+V3.3：32个源文件，退出0，stdout与stderr均为空。
+这是真实 JDK 8 编译和运行，没有用新 JDK 的兼容目标替代验证。
+
+运行形式：rtk proxy <上述java.exe> -Dfile.encoding=UTF-8 -cp <绝对classes目录> ui.console.SystemMain
+每次 Java 运行的 cwd 都是对应独立测试数据目录，启动前准备好文件。没有从根目录启动测试程序，没有修改 user.dir，也没有通过清空或反射重置单例模拟重启。
+恢复场景修复测试文件后启动新 JVM。旧版与新版使用相同数据、相同输入和同一份测试业务代码，仅装配方式不同。
+
+三、设计与实现
+
+V3.2 对象创建链路：
+SystemMain 调用 ConsoleApplication.start；ConsoleApplication 依次 new FileUserDao、FileResourceDao、FileReserveRecordDao。
+三个 DAO 构造器调用 FileUtil.loadUsers/loadResources/loadReserves 将文件读入各自的 final List 字段。
+随后通过 new UserService(users)、new ResourceService(resources, records)、new ReserveRecordService(records, resources) 注入 DAO，再构造 ResourceConsole、ReserveConsole、ConsoleSession。
+
+V3.3 调整：
+1. UserService、ResourceService、ReserveRecordService 以 private static final INSTANCE = new 本类() 创建唯一实例；构造器私有，提供 public static getInstance()。
+2. FileUserDao、FileResourceDao、FileReserveRecordDao 以 private static final INSTANCE 保存实例，在类的静态初始化块中调用唯一的私有构造器；提供 public static getInstance()。
+3. 新增 dao.DaoFactory，只有私有构造器及三个静态工厂方法。返回类型是 UserDao、ResourceDao、ReserveRecordDao 接口，方法内部仅调用对应 File*Dao.getInstance()。没有批量初始化 DAO 的静态字段。
+4. 三个 Service 的 final DAO 字段仍使用接口类型，私有构造器通过 DaoFactory 获取依赖。Service 之间没有相互依赖。
+5. ConsoleApplication 先依次调用三项加载方法，全部成功后才获取三个 Service 单例并装配原有 UI 对象。
+
+源码范围只有8个文件：
+src/dao/FileUserDao.java
+src/dao/FileResourceDao.java
+src/dao/FileReserveRecordDao.java
+src/dao/DaoFactory.java（新增）
+src/service/UserService.java
+src/service/ResourceService.java
+src/service/ReserveRecordService.java
+src/ui/console/ConsoleApplication.java
+
+原业务方法及签名不变，FileUtil、Result、实体、枚举、异常类和三个 DAO 接口不变。
+SystemMain、ConsoleSession、ConsoleOutput、ResourceConsole、ReserveConsole 保持原职责和代码；学生资源 CRUD 仍用原 null 参数调用触发权限拒绝。
+没有增加 reset、setInstance、重载接口、生产计数器、测试开关或额外框架。
+
+四、初始化顺序与异常处理
+
+启动顺序保持为：用户 DAO → 资源 DAO → 预约 DAO → Service → 会话。
+三个 DAO 的私有构造器继续声明 throws IOException，加载逻辑原样保留。静态初始化块只捕获 IOException，并用 ExceptionInInitializerError 保留原因。
+例如非法用户时间产生的 RuntimeException 会由 JVM 包装为类初始化错误；因此启动加载边界将原 catch (Exception) 扩为 catch (Exception | ExceptionInInitializerError)。没有捕获 Throwable 或 Error 大类。
+
+各加载边界继续转换为原 BusinessException 提示，由 start 输出后立即返回：
+用户数据加载失败，请检查 user.txt。
+资源数据加载失败，请检查 resource.txt。
+预约数据加载失败，请检查 reserve.txt。
+
+任一步失败都不进入后续加载方法，也不获取 Service。没有改为空集合继续运行，没有自动修复或覆盖坏文件，没有重试。
+缺失文件仍由 FileUtil 在原加载时机创建；失败前尚未轮到的缺失文件不创建。
+类初始化失败后不在同一 JVM 恢复该类，恢复测试使用修复后的测试文件与新进程。
+
+五、验证方法与总体结果
+
+控制台：两版各60个场景、86次独立 JVM、767条预期断言全部通过。
+服务业务：两版各20个场景、20次独立 JVM、402条 Java 预期断言全部通过。
+合计每版106次应用 JVM 运行；两版212次。上述应用运行均退出0，stderr为空；控制台启动加载失败时仅输出对应的原中文提示，不进入菜单。
+控制台对照 stdin、stdout、stderr、退出码和三个文件的存在性/内容；服务测试对照调用参数、stdout、stderr、退出码和三个文件内容。
+全部80个场景的两版结果一致。
+
+规范化仅映射本次实际生成的 UUID 和注册/申请/审核的当前时间，UUID 保留对应关系。控制台时间还校验处于真实调用时钟范围，服务测试登记实际返回时间。
+不删除提示、菜单、字段、空格，不排序输出。固定历史时间、预约起止时间、测试 ID、输入内容和文件缺失状态均原样比较。
+业务固定预约时间为2050-01-02，历史时间为2020-01-02T03:04:05、2026-01-02T03:04:05；控制台固定预约时间为2099年，历史时间为2024年，均未规范化。
+比较前检查两版场景列表、顺序及完整数量，控制台另检查步骤数，防止 zip 比较漏掉尾部场景。
+
+单例专项：33项身份/共享状态/磁盘变化断言、3个工厂独立获取场景共9项断言通过。另有六个外部构造负向编译均因 private access 被拒绝。
+所有 getInstance 多次获取均以 == 比较；工厂返回值与具体 DAO 的 getInstance 以 == 比较一致。
+通过 DAO 修改用户密码、资源名称、预约备注，Service 能读取同一个对象；通过 Service 注册、新增资源、提交预约，工厂或具体 DAO 能读取同一个对象。
+首次加载后，将三个测试文件全部改成 corrupted-after-first-load，再连续五次获取工厂和 Service，原实例及已加载数据仍可用，磁盘坏内容保持原样。
+另外分别在三个空目录只调用 getUserDao/getResourceDao/getReserveRecordDao，每次只生成被请求 DAO 的文件，另两个文件不出现。
+源码检索加人工核对确认：只有六处核心类 new，均为类自身 INSTANCE 初始化；只有三处 FileUtil.load 调用，均在 DAO 私有构造器内。因此“不重复读取”的结论由运行证据和调用位置共同支持，并非仅凭 ==。
+
+业务与失败覆盖：登录注册、资源 CRUD 与校验顺序；全部菜单分派及未知/带空格选项；权限拒绝后的输入流；提交、通过、驳回、本人/越权取消；待审核筛选；审核信息展示、保存及取消保留；Stream/Optional 查询；时间冲突及相接；同资源多条 PASS、删除保护及最后取消释放；旧8字段、新10字段、转义；空/缺失/损坏文件；逐级加载失败及修复重启。
+公开状态操作矩阵：PENDING→PASS/REJECT/CANCEL 与 PASS→CANCEL 四条合法；其余八种“通过/驳回/取消”操作拒绝。没有新增预约开始后禁止取消的规则。
+
+真实只读文件验证包括7个场景：reserve 提交、通过、驳回、取消待审核、取消已通过；resource 审核通过、取消已通过。
+DAO 初始化后才对测试文件设置 Windows dos:readonly=true，确认实际属性生效，再执行正常业务调用；finally 恢复属性。
+逐项检查异常类型和中文提示、记录数量、预约状态、驳回原因、审核时间、资源状态，以及 reserve/resource 前后原始字节和 SHA-256。
+资源写入失败时，预约文件先保存再补偿，最终内容恢复；七个场景的文件与内存检查全部通过。
+
+六、实际遇到的问题与解决
+
+1. 静态字段初始化不能直接忽略 DAO 构造器的 IOException。采用类内静态初始化块，将失败转成 ExceptionInInitializerError，启动边界明确处理该类型，避免原 catch (Exception) 漏接。
+2. Windows 下 javac 负向编译诊断包含中文路径，默认编码使测试脚本按 UTF-8 解码失败。负向编译增加 -J-Dfile.encoding=UTF-8，并指定英文诊断，重新验证六个构造器均确因私有访问被拒绝。
+3. 控制台基线测试最初将“查询资源成功。”的子串出现次数写为1，但它也出现在“按名称查询资源成功。”中，实际为2。修正准确预期为2，保留完整消息断言，并完整重跑两版；没有改生产提示。
+4. 代码审查发现测试比较器直接 zip 两版结果可能漏掉尾部场景，补充完整列表和数量校验后重新比较，结果仍全部一致。
+5. 二进制 Git 归档最初经命令输出代理捕获后不能解压，改用 git archive --output 直接写入本次临时目录，重新解压并成功编译冻结源码。
+6. 远程标签只读核实最初遇到 Schannel 凭据错误，改用单次命令参数 -c http.sslBackend=openssl 查询成功；没有修改持久 Git 配置，没有推送。
+
+七、验证限制与版本保存
+
+没有目标为 PENDING 的公共业务入口，因此未反射调用私有状态校验方法；该边界由现有源码确认。
+真实只读场景验证了首次预约保存失败和资源保存失败后的成功补偿，没有制造“资源保存失败且预约补偿再次失败”的双重故障，不把该分支写成已运行通过。
+没有进行并发、性能、异常断电等后续阶段测试。本任务范围内实现与要求的回归验证已完成。
+没有生成或编造截图。下文保存真实输入、输出摘录、文件证据和逐场景结果；全部原始日志在测试时参与完整比较。按要求，核对绝对路径后只清理本次临时目录，不将测试脚本或完整日志提交仓库。
+本次只提交上述8个源码文件及本报告；保留原已暂存 V2.0 报告及其他用户内容。只创建一条 V3.3 本地提交，不推送，不创建 v3.3 标签。
+
+八、实际证据摘录与逐场景记录
+
+以下输入按 JSON 字符串表示，\n 是输入换行，空格保留；输出是明确标注的实际摘录。
+
+A. 单例专项实际 stdout（身份及内存状态检查进程 exit=0，stderr为空）
+PASS FileUserDao ==
+PASS FileResourceDao ==
+PASS FileReserveRecordDao ==
+PASS UserService ==
+PASS ResourceService ==
+PASS ReserveRecordService ==
+PASS factory user ==
+PASS factory resource ==
+PASS factory reserve ==
+PASS DAO mutation visible to user service
+PASS DAO mutation visible to resource service
+PASS DAO mutation visible to reserve service
+PASS user service write visible to direct DAO
+PASS resource service write visible to factory
+PASS reserve service write visible to direct DAO
+PASS repeat factory identity 0
+PASS repeat service identity 0
+PASS loaded state retained 0
+PASS repeat factory identity 1
+PASS repeat service identity 1
+PASS loaded state retained 1
+PASS repeat factory identity 2
+PASS repeat service identity 2
+PASS loaded state retained 2
+PASS repeat factory identity 3
+PASS repeat service identity 3
+PASS loaded state retained 3
+PASS repeat factory identity 4
+PASS repeat service identity 4
+PASS loaded state retained 4
+PASS changed disk untouched user.txt
+PASS changed disk untouched resource.txt
+PASS changed disk untouched reserve.txt
+TOTAL_CHECKS=33
+
+UserService: javac exit=1; UserService() has private access in UserService
+ResourceService: javac exit=1; ResourceService() has private access in ResourceService
+ReserveRecordService: javac exit=1; ReserveRecordService() has private access in ReserveRecordService
+FileUserDao: javac exit=1; FileUserDao() has private access in FileUserDao
+FileResourceDao: javac exit=1; FileResourceDao() has private access in FileResourceDao
+FileReserveRecordDao: javac exit=1; FileReserveRecordDao() has private access in FileReserveRecordDao
+
+B. 实际预约状态流转输出摘录（V3.3 flows 场景）
+DATA|passThenCancel|ReserveRecord{recordId='7146194a-8e92-4297-8759-66d0a1d9fe95', resourceId='room', applicantUsername='alice', applyTime=2026-11-15T00:09:01.356, reserveStartTime=2050-01-02T09:00, reserveEndTime=2050-01-02T10:00, status=PENDING, remark='passThenCancel', rejectReason='', auditTime=未记录}
+DATA|approve|ReserveRecord{recordId='7146194a-8e92-4297-8759-66d0a1d9fe95', resourceId='room', applicantUsername='alice', applyTime=2026-11-15T00:09:01.356, reserveStartTime=2050-01-02T09:00, reserveEndTime=2050-01-02T10:00, status=PASS, remark='passThenCancel', rejectReason='', auditTime=2026-11-15T00:09:01.370}
+DATA|reject|ReserveRecord{recordId='8a08372d-eda5-452c-ad6b-c69a0b9b780f', resourceId='room', applicantUsername='alice', applyTime=2026-11-15T00:09:01.362, reserveStartTime=2050-01-02T10:00, reserveEndTime=2050-01-02T11:00, status=REJECT, remark='rejected', rejectReason='管道|反斜杠\\回车\r换行\n中文', auditTime=2026-11-15T00:09:01.372}
+DATA|pendingCancel|ReserveRecord{recordId='d5436788-9af5-48d5-9ea4-cef88162f4d6', resourceId='room', applicantUsername='alice', applyTime=2026-11-15T00:09:01.364, reserveStartTime=2050-01-02T11:00, reserveEndTime=2050-01-02T12:00, status=CANCEL, remark='pendingThenCancel', rejectReason='', auditTime=未记录}
+DATA|passCancel|ReserveRecord{recordId='7146194a-8e92-4297-8759-66d0a1d9fe95', resourceId='room', applicantUsername='alice', applyTime=2026-11-15T00:09:01.356, reserveStartTime=2050-01-02T09:00, reserveEndTime=2050-01-02T10:00, status=CANCEL, remark='passThenCancel', rejectReason='', auditTime=2026-11-15T00:09:01.370}
+对应 reserve.txt 最终文件行：
+7146194a-8e92-4297-8759-66d0a1d9fe95|room|alice|2026-11-15T00:09:01.356|2050-01-02T09:00|2050-01-02T10:00|CANCEL|passThenCancel||2026-11-15T00:09:01.370
+8a08372d-eda5-452c-ad6b-c69a0b9b780f|room|alice|2026-11-15T00:09:01.362|2050-01-02T10:00|2050-01-02T11:00|REJECT|rejected|管道\|反斜杠\\回车\r换行\n中文|2026-11-15T00:09:01.372
+d5436788-9af5-48d5-9ea4-cef88162f4d6|room|alice|2026-11-15T00:09:01.364|2050-01-02T11:00|2050-01-02T12:00|CANCEL|pendingThenCancel||
+11f424aa-89ef-4b94-915d-2c017d5a9c92|room|alice|2026-11-15T00:09:01.366|2050-01-02T12:00|2050-01-02T13:00|PENDING|stillPending||
+
+C. 资源文件只读导致审核失败的真实证据
+SCENARIO|resource_approve
+JAVA|1.8.0_504
+CHECK|fault.readonlyActual|expected=true|actual=true
+CHECK|fault.resource_approve.class|expected=BusinessException|actual=BusinessException
+CHECK|fault.resource_approve.message|expected=资源数据保存失败，请检查 resource.txt。|actual=资源数据保存失败，请检查 resource.txt。
+CHECK|fault.memoryCount|expected=1|actual=1
+CHECK|fault.statusRollback|expected=PENDING|actual=PENDING
+CHECK|fault.reasonRollback|expected=管道|反斜杠\\回车\r换行\n中文|actual=管道|反斜杠\\回车\r换行\n中文
+CHECK|fault.auditRollback|expected=2026-01-02T03:04:05|actual=2026-01-02T03:04:05
+RECORD|ReserveRecord{recordId='fault', resourceId='room', applicantUsername='alice', applyTime=2020-01-02T03:04:05, reserveStartTime=2050-01-02T09:00, reserveEndTime=2050-01-02T10:00, status=PENDING, remark='fixture', rejectReason='管道|反斜杠\\回车\r换行\n中文', auditTime=2026-01-02T03:04:05}
+CHECK|fault.resourceRollback|expected=AVAILABLE|actual=AVAILABLE
+CHECK|fault.reserveBytesEqual|expected=true|actual=true
+CHECK|fault.resourceBytesEqual|expected=true|actual=true
+CHECK|fault.readonlyRestored|expected=false|actual=false
+PASS|resource_approve|assertions=11
+
+reserve.txt 保存前/失败恢复后 SHA-256 相同：7909c0a7ddd51ef0d643d62624147ea6d4c1078a4f065b190b411b6c1b73e792
+resource.txt 保存前/失败恢复后 SHA-256 相同：7d4bd6aeb6afc961cfe9d2bb802cb943276784d2c9f6eaa01f0eff6ab887dadc
+
+D. 加载失败顺序与修复新进程的实际输出
+步骤1: input="0\n"; stderr=""; exit=0
+用户数据加载失败，请检查 user.txt。
+步骤2: input="0\n"; stderr=""; exit=0
+资源数据加载失败，请检查 resource.txt。
+步骤3: input="0\n"; stderr=""; exit=0
+预约数据加载失败，请检查 reserve.txt。
+步骤4: input="1\nadmin\nadmin123\n7\n0\n0\n"; stderr=""; exit=0
+修复三个文件后新 JVM 输出包含：登录成功，欢迎使用校园资源预约系统！ / 查询全部预约成功。
+
+E. 服务业务逐场景结果（两版每项 stdout/stderr/exit/文件对照一致）
+V3.2 / V3.3 服务业务回归实际结果
+全部通过：True
+场景：20；独立 JVM：40；每版断言：{'baseline': 402, 'current': 402}
+实际 JDK：C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin
+参数：javac -J-Dfile.encoding=UTF-8 -encoding UTF-8；java -Dfile.encoding=UTF-8
+比较项：退出码、原始 stdout/stderr、三个数据文件（仅替换登记的运行生成 UUID/当前时间）。
+固定业务时间：2050-01-02 09:00 至 13:00；固定历史时间 2020-01-02T03:04:05 和 2026-01-02T03:04:05 未规范化。
+公共状态矩阵：PENDING -> PASS / REJECT / CANCEL、PASS -> CANCEL 四条允许；其余八种公开操作拒绝。
+真实只读故障：reserve_submit、reserve_approve、reserve_reject、reserve_cancel_pending、reserve_cancel_pass、resource_approve、resource_cancel_pass。
+只读成功证据：CHECK|fault.readonlyActual|expected=true|actual=true；finally 恢复 false。
+reserve 保存失败实际消息：预约数据保存失败，请检查 reserve.txt。
+resource 保存失败实际消息：资源数据保存失败，请检查 resource.txt。
+内存/文件证据：statusRollback、reasonRollback、auditRollback、resourceRollback 全部符合；reserveBytesEqual 和 resourceBytesEqual 均为 true。
+重启覆盖：注册登录、资源新增/修改/删除、提交和转义、审核信息和取消保留、8/10 字段兼容与保存。
+限制：PENDING 无公共目标入口，仅确认源码；未制造补偿再次失败；未使用反射/生产注入/修改 user.dir。
+
+auth: assertions=25; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+auth_restart: assertions=4; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+resources: assertions=54; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+resources_restart: assertions=6; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+submission: assertions=37; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+submission_restart: assertions=6; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+flows: assertions=62; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+flows_restart: assertions=10; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+illegal: assertions=61; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+conflicts: assertions=31; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+missing_resources: assertions=8; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+formats: assertions=12; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+formats_restart: assertions=12; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+reserve_submit: assertions=8; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+reserve_approve: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+reserve_reject: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+reserve_cancel_pending: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+reserve_cancel_pass: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+resource_approve: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+resource_cancel_pass: assertions=11; baseline=True; current=True; stdout/stderr/exit/files_equal=True; differences=[]
+
+服务测试调用参数摘要：
+auth：login(" ", "")、login("unknown", "")、login("unknown", "wrong")、login("alice", "wrong")；注册账号包含中文、竖线、反斜杠和换行，再新进程登录。
+resources：admin/student/guest 角色；missing ID、空名称、INVALID 状态；r1/r2/r3 为 AVAILABLE/OCCUPIED/DISABLED；按名称/ID/可用状态筛选及排序；新增、修改、删除后新进程查询。
+submission/flows：alice 对 room 提交2050-01-02的09:00-10:00、10:00-11:00、11:00-12:00、12:00-13:00记录，管理员 decision="1"通过或"2"驳回，本人取消；检查原 Result 及状态字段。
+illegal：对 PENDING/PASS/REJECT/CANCEL 分别审核通过、驳回、取消；检查重复审核/取消、非本人取消、错误审核选项及空驳回原因的原校验顺序。
+conflicts：PASS 的重叠与两侧相接时间；同资源多个 PASS、资源删除和改为 AVAILABLE 的保护、最后一个 PASS 取消才释放。
+formats：旧8字段、新10字段，中文、竖线、反斜杠、回车和换行；保存后新进程核对。
+readonly：recordId="fault"、resourceId="room"、applicant="alice"，固定审核时间2026-01-02T03:04:05；7种故障调用验证字段及文件回滚。
+
+F. 控制台全部场景的真实输入及结果（每一步均 stderr=""、exit=0；两版完整输出和三个文件一致）
+main-options-and-raw-choice: PASS; steps=1; assertions=9
+  input[1]="unknown\n 1 \n 2 \n 0 \n\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+login-validation: PASS; steps=1; assertions=11
+  input[1]="1\n   \npw\n1\nmissing\npw\n1\nalice\n\n1\nalice\n alice123 \n1\n  alice  \nalice123\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+register-trim-and-password-preservation: PASS; steps=2; assertions=18
+  input[1]="2\n  newstudent  \n  pw|\\123  \n1\nnewstudent\npw|\\123\n1\n newstudent \n  pw|\\123  \n0\n0\n"
+  input[2]="1\nnewstudent\n  pw|\\123  \n11\n0\n0\n"
+  最后一步文件：user.txt=221字节, resource.txt=294字节, reserve.txt=802字节
+register-validation: PASS; steps=1; assertions=8
+  input[1]="2\n \n123456\n2\nshortpw\n123\n2\nalice\n123456\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+unsupported-role: PASS; steps=1; assertions=8
+  input[1]="1\noutsider\noutside123\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-unknown-and-raw-choice: PASS; steps=1; assertions=8
+  input[1]="1\nadmin\nadmin123\nunknown\n 1 \n 13 \n 0 \n\n6\n resource-A \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+alice-unknown-and-raw-choice: PASS; steps=1; assertions=8
+  input[1]="1\nalice\nalice123\nunknown\n 1 \n 13 \n 0 \n\n6\n resource-A \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-2: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n2\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-3: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n3\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-4: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n4\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-7: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n7\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-8: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n8\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-9: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n9\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-denied-13: PASS; steps=1; assertions=12
+  input[1]="1\nalice\nalice123\n13\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-denied-10: PASS; steps=1; assertions=9
+  input[1]="1\nadmin\nadmin123\n10\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-denied-11: PASS; steps=1; assertions=9
+  input[1]="1\nadmin\nadmin123\n11\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-denied-12: PASS; steps=1; assertions=9
+  input[1]="1\nadmin\nadmin123\n12\n6\nresource-A\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-resource-add-trim: PASS; steps=2; assertions=22
+  input[1]="1\nadmin\nadmin123\n1\n  Added|Name\\  \n  TYPE  \n  新楼  \n  新描述 | \\  \n2\n0\n0\n"
+  input[2]="1\nadmin\nadmin123\n2\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=384字节, reserve.txt=802字节
+admin-resource-modify-trim: PASS; steps=2; assertions=21
+  input[1]="1\nadmin\nadmin123\n3\n resource-E \n  Edited  \n  NEWTYPE  \n  新位置  \n DISABLED \n6\n resource-E \n0\n0\n"
+  input[2]="1\nadmin\nadmin123\n6\nresource-E\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=291字节, reserve.txt=802字节
+admin-resource-delete: PASS; steps=2; assertions=13
+  input[1]="1\nadmin\nadmin123\n4\n resource-E \n6\nresource-E\n0\n0\n"
+  input[2]="1\nadmin\nadmin123\n6\nresource-E\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=237字节, reserve.txt=802字节
+admin-resource-query-options: PASS; steps=1; assertions=10
+  input[1]="1\nadmin\nadmin123\n2\n5\n  会议室  \n6\n resource-D \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-resource-query-options: PASS; steps=1; assertions=11
+  input[1]="1\nalice\nalice123\n1\n5\n  会议室  \n6\n resource-A \n6\nresource-D\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+resource-validation-and-following-input: PASS; steps=1; assertions=11
+  input[1]="1\nadmin\nadmin123\n3\nmissing\n6\nresource-A\n4\nmissing\n5\n   \n1\n \nT\nL\nD\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-reserve-all-and-pending: PASS; steps=1; assertions=13
+  input[1]="1\nadmin\nadmin123\n7\n13\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-by-resource: PASS; steps=1; assertions=10
+  input[1]="1\nadmin\nadmin123\n9\n 1 \n resource-B \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-by-applicant: PASS; steps=1; assertions=10
+  input[1]="1\nadmin\nadmin123\n9\n 2 \n bob \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-status-pending: PASS; steps=1; assertions=13
+  input[1]="1\nadmin\nadmin123\n9\n 3 \n PENDING \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-status-pass: PASS; steps=1; assertions=13
+  input[1]="1\nadmin\nadmin123\n9\n 3 \n PASS \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-status-reject: PASS; steps=1; assertions=13
+  input[1]="1\nadmin\nadmin123\n9\n 3 \n REJECT \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-status-cancel: PASS; steps=1; assertions=13
+  input[1]="1\nadmin\nadmin123\n9\n 3 \n CANCEL \n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-query-invalid: PASS; steps=1; assertions=9
+  input[1]="1\nadmin\nadmin123\n9\n0\nalice\n9\n3\nUNKNOWN\n9\n1\n \n9\n1\nmissing\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-my-reserves: PASS; steps=1; assertions=11
+  input[1]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-submit-preserves-remark: PASS; steps=2; assertions=24
+  input[1]="1\nalice\nalice123\n10\n resource-A \n 2099-07-01 09:00 \n 2099-07-01 10:00 \n  新备注 | \\  \n11\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=947字节
+student-submit-blank-remark: PASS; steps=1; assertions=10
+  input[1]="1\nalice\nalice123\n10\nresource-A\n2099-07-01 09:00\n2099-07-01 10:00\n\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=928字节
+student-submit-invalid-date-following-menu: PASS; steps=1; assertions=8
+  input[1]="1\nalice\nalice123\n10\nresource-A\nnot-a-date\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-submit-invalid-end-following-menu: PASS; steps=1; assertions=8
+  input[1]="1\nalice\nalice123\n10\nresource-A\n2099-07-01 09:00\nnot-a-date\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+student-cancel-own-pending: PASS; steps=2; assertions=17
+  input[1]="1\nalice\nalice123\n12\n pending-approve \n11\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=803字节
+student-cancel-own-pass-retains-audit: PASS; steps=2; assertions=21
+  input[1]="1\nalice\nalice123\n12\n passed-alice \n6\nresource-C\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n6\nresource-C\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=295字节, reserve.txt=806字节
+student-cancel-unauthorized-and-invalid: PASS; steps=1; assertions=11
+  input[1]="1\nalice\nalice123\n12\npending-bob\n12\nmissing\n12\nrejected-alice\n12\ncancelled-alice\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+admin-approve-and-restart: PASS; steps=2; assertions=22
+  input[1]="1\nadmin\nadmin123\n8\n pending-approve \n 1 \n13\n6\nresource-A\n0\n0\n"
+  input[2]="1\nadmin\nadmin123\n9\n3\nPASS\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=293字节, reserve.txt=824字节
+admin-reject-preserves-reason: PASS; steps=2; assertions=24
+  input[1]="1\nadmin\nadmin123\n8\n pending-reject \n 2 \n  新原因 | \\  \n9\n3\nREJECT\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=845字节
+admin-audit-invalid-following-input: PASS; steps=1; assertions=14
+  input[1]="1\nadmin\nadmin123\n8\npending-approve\n9\n8\npending-reject\n2\n   \n8\npassed-alice\n1\n8\nmissing\n1\n13\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+legacy-eight-and-fixed-audit-visible: PASS; steps=1; assertions=10
+  input[1]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+reserve-missing: PASS; steps=2; assertions=14
+  input[1]="1\nadmin\nadmin123\n7\n13\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=0字节
+reserve-empty: PASS; steps=2; assertions=15
+  input[1]="1\nadmin\nadmin123\n7\n13\n0\n0\n"
+  input[2]="1\nalice\nalice123\n11\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=0字节
+all-files-missing: PASS; steps=1; assertions=7
+  input[1]="0\n"
+  最后一步文件：user.txt=0字节, resource.txt=0字节, reserve.txt=0字节
+all-files-empty: PASS; steps=1; assertions=10
+  input[1]="0\n"
+  最后一步文件：user.txt=0字节, resource.txt=0字节, reserve.txt=0字节
+load-reserve-field-count: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-reserve-duplicate-id: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-reserve-bad-date: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-reserve-bad-audit-time: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-reserve-bad-status: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-reserve-bad-escape: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-user-bad-fields-blocks-later-creation: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="0\n"
+  最后一步文件：user.txt=163字节, resource.txt=0字节, reserve.txt=0字节
+load-user-runtime-date-blocks-later-creation: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="0\n"
+  最后一步文件：user.txt=163字节, resource.txt=0字节, reserve.txt=0字节
+load-user-bad-escape-blocks-later-creation: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="0\n"
+  最后一步文件：user.txt=163字节, resource.txt=0字节, reserve.txt=0字节
+load-all-corrupt-user-wins: PASS; steps=4; assertions=24
+  input[1]="0\n"
+  input[2]="0\n"
+  input[3]="0\n"
+  input[4]="1\nadmin\nadmin123\n7\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=802字节
+load-resource-bad-fields-blocks-reserve-creation: PASS; steps=2; assertions=12
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n2\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=0字节
+load-resource-bad-escape-blocks-reserve-creation: PASS; steps=2; assertions=12
+  input[1]="0\n"
+  input[2]="1\nadmin\nadmin123\n2\n0\n0\n"
+  最后一步文件：user.txt=163字节, resource.txt=294字节, reserve.txt=0字节
+load-resource-failure-creates-earlier-user-only: PASS; steps=2; assertions=13
+  input[1]="0\n"
+  input[2]="0\n"
+  最后一步文件：user.txt=0字节, resource.txt=294字节, reserve.txt=0字节
+
+控制台代表性输出摘录：
+student-denied-2:
+  请选择：权限不足，仅管理员可以管理校园资源。
+  请选择：请输入资源 ID：查询资源成功。
+main-options-and-raw-choice:
+  请选择：无效选项，请重新选择。
+  请选择：无效选项，请重新选择。
+  请选择：无效选项，请重新选择。
+  请选择：无效选项，请重新选择。
+  请选择：无效选项，请重新选择。
+  请选择：已退出系统。
+admin-reject-preserves-reason:
+  请选择：请输入要审核的预约记录 ID：请选择审核结果（1. 通过  2. 驳回）：请输入驳回原因：预约审核驳回。
+  ReserveRecord{recordId='pending-reject', resourceId='resource-B', applicantUsername='alice', applyTime=2024-03-01T09:00, reserveStartTime=2099-06-01T09:00, reserveEndTime=2099-06-01T10:00, status=REJECT, remark='固定备注', rejectReason='  新原因 | \  ', auditTime=2026-11-15T00:09:42.378}
+  ReserveRecord{recordId='pending-reject', resourceId='resource-B', applicantUsername='alice', applyTime=2024-03-01T09:00, reserveStartTime=2099-06-01T09:00, reserveEndTime=2099-06-01T10:00, status=REJECT, remark='固定备注', rejectReason='  新原因 | \  ', auditTime=2026-11-15T00:09:42.378}
+load-user-runtime-date-blocks-later-creation:
+  用户数据加载失败，请检查 user.txt。

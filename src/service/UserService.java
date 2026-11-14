@@ -3,6 +3,7 @@ package service;
 import java.io.IOException;
 import java.time.LocalDateTime;
 
+import dao.DaoFactory;
 import dao.UserDao;
 import entity.User;
 import exception.ParameterEmptyException;
@@ -14,10 +15,16 @@ import utils.Result;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class UserService {
+    private static final UserService INSTANCE = new UserService();
+
     private final UserDao users;
 
-    public UserService(UserDao users) {
-        this.users = users;
+    private UserService() {
+        this.users = DaoFactory.getUserDao();
+    }
+
+    public static UserService getInstance() {
+        return INSTANCE;
     }
 
     public Result<User> login(String username, String password) {

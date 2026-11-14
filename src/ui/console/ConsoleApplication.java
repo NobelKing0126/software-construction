@@ -1,8 +1,6 @@
 package ui.console;
 
-import dao.FileReserveRecordDao;
-import dao.FileResourceDao;
-import dao.FileUserDao;
+import dao.DaoFactory;
 import dao.ReserveRecordDao;
 import dao.ResourceDao;
 import dao.UserDao;
@@ -15,44 +13,41 @@ import utils.Result;
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 final class ConsoleApplication {
     static void start() {
-        UserDao users;
-        ResourceDao resources;
-        ReserveRecordDao records;
         try {
-            users = loadUsers();
-            resources = loadResources();
-            records = loadReserves();
+            loadUsers();
+            loadResources();
+            loadReserves();
         } catch (BusinessException e) {
             ConsoleOutput.showResult(Result.fail(e.getMessage()));
             return;
         }
 
-        UserService userService = new UserService(users);
-        ResourceConsole resourceConsole = new ResourceConsole(new ResourceService(resources, records));
-        ReserveConsole reserveConsole = new ReserveConsole(new ReserveRecordService(records, resources));
+        UserService userService = UserService.getInstance();
+        ResourceConsole resourceConsole = new ResourceConsole(ResourceService.getInstance());
+        ReserveConsole reserveConsole = new ReserveConsole(ReserveRecordService.getInstance());
         new ConsoleSession(userService, resourceConsole, reserveConsole).run();
     }
 
     private static UserDao loadUsers() {
         try {
-            return new FileUserDao();
-        } catch (Exception e) {
+            return DaoFactory.getUserDao();
+        } catch (Exception | ExceptionInInitializerError e) {
             throw new BusinessException("用户数据加载失败，请检查 user.txt。");
         }
     }
 
     private static ResourceDao loadResources() {
         try {
-            return new FileResourceDao();
-        } catch (Exception e) {
+            return DaoFactory.getResourceDao();
+        } catch (Exception | ExceptionInInitializerError e) {
             throw new BusinessException("资源数据加载失败，请检查 resource.txt。");
         }
     }
 
     private static ReserveRecordDao loadReserves() {
         try {
-            return new FileReserveRecordDao();
-        } catch (Exception e) {
+            return DaoFactory.getReserveRecordDao();
+        } catch (Exception | ExceptionInInitializerError e) {
             throw new BusinessException("预约数据加载失败，请检查 reserve.txt。");
         }
     }
