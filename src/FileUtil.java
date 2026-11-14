@@ -9,12 +9,15 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public final class FileUtil {
     private static final String USER_FILE = "user.txt";
     private static final String RESOURCE_FILE = "resource.txt";
+    private static final String RESERVE_FILE = "reserve.txt";
     private static final char SEPARATOR = '|';
 
     private FileUtil() {
@@ -64,6 +67,37 @@ public final class FileUtil {
         return resources;
     }
 
+    public static List<ReserveRecord> loadReserves() throws IOException {
+        File file = new File(RESERVE_FILE);
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+
+        List<ReserveRecord> records = new ArrayList<ReserveRecord>();
+        Set<String> ids = new HashSet<String>();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+                new FileInputStream(file), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                List<String> fields = splitRecord(line, "预约数据文件格式错误。");
+                if (fields.size() != 8 || fields.get(0).isEmpty()
+                        || !ids.add(fields.get(0))) {
+                    throw new IOException("预约数据文件格式错误。");
+                }
+                try {
+                    records.add(new ReserveRecord(fields.get(0), fields.get(1),
+                            fields.get(2), LocalDateTime.parse(fields.get(3)),
+                            LocalDateTime.parse(fields.get(4)),
+                            LocalDateTime.parse(fields.get(5)),
+                            ReserveStatus.valueOf(fields.get(6)), fields.get(7)));
+                } catch (RuntimeException e) {
+                    throw new IOException("预约数据文件格式错误。", e);
+                }
+            }
+        }
+        return records;
+    }
+
     public static void saveUsers(List<User> users) throws IOException {
         File file = new File(USER_FILE);
         if (!file.exists()) {
@@ -105,6 +139,35 @@ public final class FileUtil {
                 writer.write(escape(resource.getLocation()));
                 writer.write(SEPARATOR);
                 writer.write(escape(resource.getDescription()));
+                writer.newLine();
+            }
+        }
+    }
+
+    public static void saveReserves(List<ReserveRecord> records) throws IOException {
+        File file = new File(RESERVE_FILE);
+        if (!file.exists()) {
+            file.createNewFile();
+        }
+
+        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(
+                new FileOutputStream(file), StandardCharsets.UTF_8))) {
+            for (ReserveRecord record : records) {
+                writer.write(escape(record.getRecordId()));
+                writer.write(SEPARATOR);
+                writer.write(escape(record.getResourceId()));
+                writer.write(SEPARATOR);
+                writer.write(escape(record.getApplicantUsername()));
+                writer.write(SEPARATOR);
+                writer.write(record.getApplyTime().toString());
+                writer.write(SEPARATOR);
+                writer.write(record.getReserveStartTime().toString());
+                writer.write(SEPARATOR);
+                writer.write(record.getReserveEndTime().toString());
+                writer.write(SEPARATOR);
+                writer.write(record.getStatus().name());
+                writer.write(SEPARATOR);
+                writer.write(escape(record.getRemark() == null ? "" : record.getRemark()));
                 writer.newLine();
             }
         }
