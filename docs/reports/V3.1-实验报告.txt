@@ -1,0 +1,72 @@
+V3.1 实验报告：任务10 三层架构重构
+
+一、范围与环境
+本版本以 Git 提交 645b84db1a706069a57e0a35cda6febdc07f27ef（v3.0）为基线，只重构分层与包结构。工作目录为 C:\Users\22614\Desktop\大三上\软件构造\校园资源预约系统。
+实际编译、运行使用 C:\Users\22614\AppData\Local\Programs\Temurin8\jdk8u504-b01\bin\javac.exe 和同目录 java.exe。实际版本输出：javac 1.8.0_504；openjdk version "1.8.0_504"，Temurin build 1.8.0_504-b01。递归编译 src 下全部 UTF-8 Java 源文件，指定 -encoding UTF-8；运行入口为 ui.console.SystemMain，指定 -Dfile.encoding=UTF-8。编译产物和每个场景的数据仅放在项目内独立临时目录，Java 的工作目录为对应场景目录；未用项目根目录既有的 user.txt、resource.txt、reserve.txt。
+
+二、迁移前后职责与依赖
+V3.0 的默认包 SystemMain 同时处理 Scanner、菜单、登录注册、资源 CRUD、预约流程、权限和时间校验、集合管理及 FileUtil 调用。V3.1 将入口和所有交互展示迁至 ui.console.SystemMain；UserService、ResourceService、ReserveRecordService 分别处理用户、资源、预约业务规则及资源状态联动；dao 包管理内存集合、查找增删和调用 FileUtil 读写；entity 保存 User、CampusResource、ReserveRecord、ReserveStatus 数据；exception 保存原有自定义异常；utils 保存 FileUtil 和 Result<T>。菜单编号、中文提示、Result<T> 约定、四种预约状态、时间边界以及三种文本文件格式保持 V3.0 行为。
+业务调用方向为 UI → Service → DAO 接口 → 文件 DAO → FileUtil。三个最小接口分别为 UserDao（按账号查找、添加、保存）、ResourceDao（列表、按 ID 查找、添加、删除、保存）、ReserveRecordDao（列表、按 ID 查找、添加、删除、保存）；FileUserDao、FileResourceDao、FileReserveRecordDao 各自实现一个接口。Service 通过构造器接收接口；只有 SystemMain.main 启动装配处创建具体文件 DAO 和 Service，菜单业务不访问 DAO。没有引入通用 BaseDao、单例或工厂。DAO 不判断权限、预约冲突或审核结果；Service 不直接调用 FileUtil；Scanner 与菜单打印只在 ui.console。控制台输入的时间字符串交由 ReserveRecordService 解析。
+预约审核通过或取消已通过预约涉及 reserve.txt 与 resource.txt 两次保存。V3.1 保留 V3.0 的恢复流程：先记旧预约状态和资源状态，保存预约后保存资源；若失败则恢复内存对象，预约已写入时再尝试写回旧状态，并给出对应中文失败提示。该流程不是跨文件原子事务，恢复再次写入失败仍会提示“数据保存失败且预约状态恢复失败，请检查 reserve.txt 和 resource.txt。”。
+
+三、UML
+可编辑图源：docs/uml/V3.1-三层架构.puml。
+直接查看：docs/uml/V3.1-三层架构.svg、docs/uml/V3.1-三层架构.png。
+可交换模型：docs/uml/V3.1-三层架构.xmi。
+实际已渲染图像并查看包边界、核心类/属性/方法、DAO 接口实现以及 UI → Service → DAO 的箭头；图为 V3.1 三层架构类图，未画任务13的 MVC。XMI 用于 Visual Paradigm 导入，但本机未实际用 Visual Paradigm 导入验证；最终版面可在软件内继续调整。
+
+四、真实回归记录
+数据基线：通常用 admin/password/admin、alice/password/student、bob/password/student，注册时间均为 2026-01-01T00:00；资源初值为 r-a 自习室 AVAILABLE、r-b 会议室 AVAILABLE、r-c 机房 DISABLED。预约场景按需要预置 PENDING、PASS、REJECT、CANCEL 记录。以下方括号逐项表示送入 stdin 的一行，每次输入末尾也有换行；“重启”表示另起 Java 进程、沿用该场景写出的文件。stdout 为实际输出摘录，完整菜单提示也在实际 stdout 中。全部 14 个场景共 20 次进程运行，逐次 stderr 均为空字符串，退出码均为 0。V3.0 与 V3.1 逐场景比较 stdin、stdout、stderr、退出码及三个文件快照，仅将随机 UUID 和当前时间规范化，比较结果均相同。
+
+01 登录、注册、重启：
+输入1 [2, charlie, password, 1, charlie, wrong, 1, charlie, password, 0, 0]；stdout 摘录：“注册成功。”“密码错误，登录失败。”“登录成功，欢迎使用校园资源预约系统！”；user.txt 实际新增 charlie|password|student|2026-11-14T13:36:45.603。
+输入2 [1, charlie, password, 0, 0]；重启后 stdout 仍为“登录成功，欢迎使用校园资源预约系统！”，user.txt 保留 charlie 行。
+
+02 资源查询和 CRUD：
+输入1 [1, admin, password, 2, 1, 研讨室, ROOM, 四号楼, 讨论, 5, 自习, 6, r-a, 3, r-a, 自习室二, ROOM, 五号楼, DISABLED, 4, r-b, 2, 0, 0]；stdout 摘录：“查询全部资源成功。”“资源新增成功，资源 ID：66d3985a-c759-45c6-b2cc-4a25ff43d2b9”“按名称查询资源成功。”“查询资源成功。”“资源修改成功。”“资源删除成功。”；resource.txt 中 r-a 为“自习室二|ROOM|DISABLED|五号楼|安静”，r-b 行已删除，新研讨室行为 AVAILABLE。
+输入2 [1, admin, password, 6, r-a, 6, r-b, 0, 0]；重启后 stdout 为“查询资源成功。”及“未找到该 ID 对应的资源。”，确认修改与删除持久化。
+
+03 学生与管理员权限、资源查询：
+输入 [1, alice, password, 1, 2, 3, 4, 7, 8, 9, 5, 自习, 6, r-c, 0, 1, admin, password, 10, 12, 0, 0]；stdout 显示学生可查 AVAILABLE 资源与名称，查 DISABLED 的 r-c 返回“未找到该 ID 对应的资源。”；学生执行资源管理出现“权限不足，仅管理员可以管理校园资源。”，执行管理员预约菜单出现“权限不足，仅管理员可以审核或查询全部预约。”；管理员操作个人预约出现“权限不足，仅学生可以办理个人预约。”；三个数据文件未改变。
+
+04 倒置、过期、格式、PASS 冲突和不可预约资源：
+输入 [1, alice, password, 10, r-b, 2030-12-14 12:00, 2030-12-14 10:00, bad-order, 10, r-b, 2020-12-14 10:00, 2020-12-14 12:00, expired, 10, r-b, 2030-12-14 10:00, bad-time, 10, r-a, 2030-12-14 11:00, 2030-12-14 13:00, overlap, 10, r-a, 2030-12-14 12:00, 2030-12-14 13:00, touch, 10, r-c, 2030-12-14 10:00, 2030-12-14 12:00, disabled, 0, 0]；stdout 依次出现“开始时间必须早于结束时间。”“结束时间不能早于当前时间。”“时间格式错误，请使用 yyyy-MM-dd HH:mm。”“预约时间冲突：该资源已有已通过的预约。”以及两次“资源当前不可预约。”；reserve.txt 仍只有预置的 pass-a|r-a|...|PASS| 一行。
+
+05 缺失 reserve.txt、提交、转义与重启：
+场景开始时不提供 reserve.txt。输入1 [1, alice, password, 10, r-a, 2030-12-14 10:00, 2030-12-14 12:00, 备注|含\反斜杠, 11, 0, 0]；stdout 摘录“预约申请提交成功，记录 ID：8ca2e8f0-3da3-4d3b-8ce9-9b68e8f69204”“查询我的预约成功。”并展示 PENDING；reserve.txt 自动创建，备注中的竖线和反斜杠按原格式转义保存。实际文件行是 8ca2e8f0-3da3-4d3b-8ce9-9b68e8f69204|r-a|alice|2026-11-14T13:36:57.439|2030-12-14T10:00|2030-12-14T12:00|PENDING|备注\|含\\反斜杠。
+输入2 [1, alice, password, 11, 0, 0]；重启后 stdout 仍展示同一 PENDING 记录和原始备注文字。
+
+06 管理员通过、驳回、重复审核及三种筛选：
+输入1 [1, admin, password, 7, 8, p-1, 1, 8, p-2, 1, 8, p-3, 2, 8, p-3, 2, 9, 1, r-a, 9, 2, bob, 9, 3, PASS, 6, r-a, 0, 0]；stdout 为“查询全部预约成功。”“预约审核通过。”“预约时间冲突：该资源已有已通过的预约。”“预约审核驳回。”“该预约已处理，不能重复审核。”；资源 ID、申请人、状态三个筛选均返回“预约查询成功。”；resource.txt 中 r-a 为 OCCUPIED，reserve.txt 中 p-1=PASS、p-2=PENDING、p-3=REJECT。
+输入2 [1, admin, password, 9, 3, PASS, 0, 0]；重启后状态筛选仍查到 p-1=PASS。
+
+07 相接时间边界：
+输入1 [1, admin, password, 8, p-1, 1, 8, p-4, 1, 6, r-a, 0, 0]；两次 stdout 均为“预约审核通过。”；p-1 的结束时间 2030-12-14T12:00 恰为 p-4 开始时间，reserve.txt 两行均为 PASS，r-a 为 OCCUPIED。
+输入2 [1, admin, password, 9, 3, PASS, 0, 0]；重启后筛出两条 PASS。
+
+08 本人取消、越权、重复和不可取消状态：
+输入1 [1, bob, password, 12, pass-a, 11, 0, 1, alice, password, 11, 12, pending-a, 12, pass-a, 12, pass-a, 12, reject-a, 11, 0, 1, admin, password, 6, r-a, 0, 0]；stdout 先为“只能取消本人的预约。”，alice 两次“预约取消成功。”，之后重复取消及取消 REJECT 均为“当前预约状态不可取消。”；reserve.txt 中 pass-a、pending-a 为 CANCEL，reject-a 保持 REJECT；r-a 恢复 AVAILABLE。
+输入2 [1, admin, password, 7, 6, r-a, 0, 0]；重启后取消状态与 AVAILABLE 状态仍在。
+
+09 同资源两条 PASS 的释放联动：
+输入 [1, alice, password, 12, pass-a, 0, 1, admin, password, 6, r-a, 0, 1, alice, password, 12, pass-b, 0, 1, admin, password, 6, r-a, 0, 0]；两次“预约取消成功。”；取消第一条后 stdout 查询 r-a 为 OCCUPIED，取消第二条后为 AVAILABLE；reserve.txt 两条记录最终均为 CANCEL。
+
+10 PASS 删除保护及关联资源缺失：
+输入 [1, admin, password, 4, r-a, 3, r-a, 自习室, ROOM, 一号楼, AVAILABLE, 4, r-b, 4, r-c, 4, r-d, 8, pending-b, 1, 8, pending-b, 2, 0, 0]；stdout 为“存在已通过预约，不能删除资源。”“资源存在已通过预约，状态必须保持 OCCUPIED。”，随后三次“资源删除成功。”；关联 r-b 被删除后，审核通过提示“关联资源不存在，无法审核通过。”，驳回提示“预约审核驳回。”；resource.txt 最终只保留 r-a 的 OCCUPIED 行。
+
+11 空 reserve.txt：
+输入 [1, admin, password, 7, 0, 0]；stdout 为“当前没有预约记录。”；reserve.txt 保持空文件。
+
+12 损坏 reserve.txt：
+预置内容 broken|record。输入 [0]；程序启动 stdout 仅为“预约数据加载失败，请检查 reserve.txt。”；损坏文件保持原内容。
+
+13 reserve.txt 保存失败：
+将本场景 reserve.txt 设为只读，输入 [1, admin, password, 8, p-1, 1, 7, 6, r-a, 0, 0]；stdout 为“预约数据保存失败，请检查 reserve.txt。”，随后查询仍显示 p-1=PENDING、r-a=AVAILABLE；reserve.txt 与 resource.txt 保持原内容。
+
+14 resource.txt 保存失败：
+将本场景 resource.txt 设为只读，输入 [1, admin, password, 8, p-1, 1, 7, 6, r-a, 0, 0]；stdout 为“资源数据保存失败，请检查 resource.txt。”，随后查询仍显示 p-1=PENDING、r-a=AVAILABLE；reserve.txt 已写入的 PASS 被恢复为 PENDING，两文件最终保持原内容。
+
+五、问题、处理与边界
+读取任务书 DOCX 的 OOXML 正文时，首次在 Windows 默认 GBK 输出下遇到文档中符号无法编码；改为 UTF-8 标准输出后完成只读提取。迁移中需要让 UI 保留原先“先校验资源 ID，再询问修改字段”的交互顺序，因此将这一步校验交给 ResourceService；时间格式校验移到 ReserveRecordService，输入顺序和提示未改变。类图初次渲染时依赖箭头交叉较多，调整包布局并精简重复连线后重新渲染、查看 PNG。双文件保存失败用场景 13、14 的实际运行检验了中文提示和可恢复状态。
+本版本未添加任务11的 rejectReason、auditTime 或新状态机实现；未添加任务12的饿汉单例、getInstance()、DaoFactory；未添加任务13的 view、controller、enums、common、ResourceStatus 或 MVC 图；未增加数据库、统计、日志和网页界面。
+未制作或声称存在截图。XMI 是否被特定 Visual Paradigm 版本无损导入尚待在该软件中验证。本版本提交号见 Git 版本记录。

@@ -1,0 +1,193 @@
+@startuml
+!pragma layout smetana
+left to right direction
+title 校园资源预约系统 · V3.1 三层架构类图
+caption 任务 10 ｜ 菜单业务调用：UI → Service → DAO 接口 ｜ 省略部分查询方法与 getter/setter
+
+skinparam backgroundColor #F7F9FC
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam classAttributeIconSize 0
+skinparam classFontName Microsoft YaHei
+skinparam classFontSize 14
+skinparam packageFontName Microsoft YaHei
+skinparam packageFontSize 17
+skinparam packageFontStyle bold
+skinparam titleFontName Microsoft YaHei
+skinparam titleFontSize 22
+skinparam captionFontName Microsoft YaHei
+skinparam captionFontSize 12
+skinparam ArrowColor #64748B
+skinparam ArrowThickness 1.5
+skinparam linetype ortho
+skinparam ClassBorderColor #64748B
+skinparam ClassBackgroundColor #FFFFFF
+skinparam ClassFontColor #17212F
+skinparam ClassHeaderBackgroundColor #E8EEF5
+skinparam PackageBorderColor #94A3B8
+skinparam PackageBackgroundColor #F8FAFC
+
+hide empty members
+
+package "ui.console\n控制台表现层" as UI #E8F0FF {
+  class SystemMain #EFF5FF {
+    -userService: UserService
+    -resourceService: ResourceService
+    -reserveService: ReserveRecordService
+    +main(args: String[]): void
+    -resourceMenu(scanner: Scanner, user: User): void
+  }
+}
+
+package "service\n业务服务层" as SERVICE #EBF8F3 {
+  class UserService #F1FBF6 {
+    -users: UserDao
+    +UserService(users: UserDao)
+    +login(username, password): Result<User>
+    +register(username, password): Result<User>
+  }
+  class ResourceService #F1FBF6 {
+    -resources: ResourceDao
+    -records: ReserveRecordDao
+    +ResourceService(resources: ResourceDao, records: ReserveRecordDao)
+    +addResource(user, name, ...): Result<CampusResource>
+    +queryAllResources(user): Result<List<CampusResource>>
+    +modifyResource(user, id, ...): Result<CampusResource>
+    +deleteResource(user, id): Result<Void>
+  }
+  class ReserveRecordService #F1FBF6 {
+    -records: ReserveRecordDao
+    -resources: ResourceDao
+    +ReserveRecordService(records: ReserveRecordDao, resources: ResourceDao)
+    +parseReserveTime(value): LocalDateTime
+    +submitReserve(user, resourceId, start, end, remark): Result<ReserveRecord>
+    +cancelReserve(user, recordId): Result<ReserveRecord>
+    +auditReserve(user, recordId, decision): Result<ReserveRecord>
+    +queryReserves(user, field, value): Result<List<ReserveRecord>>
+  }
+}
+
+package "dao\n数据访问层" as DAO #FFF4E8 {
+  interface UserDao #FFF9F0 {
+    +findByUsername(username): User
+    +add(user): void
+    +save(): void
+  }
+  interface ResourceDao #FFF9F0 {
+    +findAll(): List<CampusResource>
+    +findById(id): CampusResource
+    +add(resource): void
+    +remove(resource): void
+    +save(): void
+  }
+  interface ReserveRecordDao #FFF9F0 {
+    +findAll(): List<ReserveRecord>
+    +findById(id): ReserveRecord
+    +add(record): void
+    +remove(record): void
+    +save(): void
+  }
+  class FileUserDao #FFFBF5 {
+    -users: List<User>
+  }
+  class FileResourceDao #FFFBF5 {
+    -resources: List<CampusResource>
+  }
+  class FileReserveRecordDao #FFFBF5 {
+    -records: List<ReserveRecord>
+  }
+}
+
+package "entity\n数据模型" as ENTITY #F2EEFB {
+  class User #F8F5FF {
+    -username: String
+    -password: String
+    -role: String
+    -registerTime: LocalDateTime
+  }
+  class CampusResource #F8F5FF {
+    -id: String
+    -name: String
+    -type: String
+    -status: String
+    -location: String
+    -description: String
+  }
+  class ReserveRecord #F8F5FF {
+    -recordId: String
+    -resourceId: String
+    -applicantUsername: String
+    -applyTime: LocalDateTime
+    -reserveStartTime: LocalDateTime
+    -reserveEndTime: LocalDateTime
+    -status: ReserveStatus
+    -remark: String
+  }
+  enum ReserveStatus #F8F5FF {
+    PENDING
+    PASS
+    REJECT
+    CANCEL
+  }
+}
+
+package "exception\n业务异常" as EXCEPTION #FDEEF0 {
+  class BusinessException #FFF7F8
+  class PermissionDeniedException #FFF7F8
+  class ResourceNotFoundException #FFF7F8
+  note bottom of BusinessException
+    其它现有子类：ParameterEmptyException、
+    UserNotFoundException、UserAlreadyExistsException、
+    PasswordErrorException、InvalidResourceStatusException
+  end note
+}
+
+package "utils\n通用工具" as UTILS #EAF7FA {
+  class "Result<T>" as Result #F3FCFE {
+    -success: boolean
+    -msg: String
+    -data: T
+    +success(msg: String, data: T): Result<T>
+    +fail(msg: String): Result<T>
+  }
+  class FileUtil #F3FCFE {
+    +loadUsers(): List<User>
+    +saveUsers(users: List<User>): void
+    +loadReserves(): List<ReserveRecord>
+    +saveReserves(records: List<ReserveRecord>): void
+  }
+}
+
+SystemMain --> UserService
+SystemMain --> ResourceService
+SystemMain --> ReserveRecordService
+note top of SystemMain #FFF1DB
+  **启动装配只在 main()**
+  创建三个 FileDao 并注入 Service；
+  菜单业务不直接调用 DAO。
+end note
+UserService --> UserDao
+ResourceService --> ResourceDao
+ResourceService --> ReserveRecordDao
+ReserveRecordService --> ResourceDao
+ReserveRecordService --> ReserveRecordDao
+FileUserDao ..|> UserDao
+FileResourceDao ..|> ResourceDao
+FileReserveRecordDao ..|> ReserveRecordDao
+FileReserveRecordDao "1" o-- "*" ReserveRecord : 管理
+ReserveRecord --> ReserveStatus
+PermissionDeniedException --|> BusinessException
+ResourceNotFoundException --|> BusinessException
+
+note bottom of DAO #FFF1DB
+  FileDao 管理各自的内存集合，调用 FileUtil 保存与加载；
+  Service 的字段类型均为 DAO 接口，通过构造器注入。
+end note
+
+UI -[hidden]right- SERVICE
+SERVICE -[hidden]right- DAO
+DAO -[hidden]down- ENTITY
+ENTITY -[hidden]down- UTILS
+SERVICE -[hidden]down- EXCEPTION
+
+@enduml

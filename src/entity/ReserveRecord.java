@@ -1,3 +1,5 @@
+package entity;
+
 import java.time.LocalDateTime;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).

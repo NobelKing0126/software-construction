@@ -1,0 +1,393 @@
+<?xml version='1.0' encoding='utf-8'?>
+<xmi:XMI xmlns:uml="http://schema.omg.org/spec/UML/2.1.1" xmlns:xmi="http://schema.omg.org/spec/XMI/2.1" xmi:version="2.1">
+  <uml:Model xmi:id="model_v31" name="校园资源预约系统 V3.1 三层架构">
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_ui_console" name="ui.console">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_ui_console">
+        <body>控制台输入、菜单、结果展示与唯一启动装配位置。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_SystemMain" name="SystemMain">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_SystemMain_userService" name="userService" visibility="private" type="cls_UserService" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_SystemMain_resourceService" name="resourceService" visibility="private" type="cls_ResourceService" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_SystemMain_reserveService" name="reserveService" visibility="private" type="cls_ReserveRecordService" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_SystemMain_main" name="main" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_SystemMain_main_p1" name="args" type="type_StringArray" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_SystemMain_resourceMenu" name="resourceMenu" visibility="private">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_SystemMain_resourceMenu_p1" name="scanner" type="type_Scanner" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_SystemMain_resourceMenu_p2" name="user" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_SystemMain_showResult" name="showResult" visibility="private" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_SystemMain_showResult_p1" name="result" type="cls_Result" />
+        </ownedOperation>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_service" name="service">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_service">
+        <body>用户、资源、预约业务规则与跨资源状态联动；只依赖 DAO 接口。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_UserService" name="UserService">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_UserService_users" name="users" visibility="private" type="itf_UserDao" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserService_login" name="login" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_login_p1" name="username" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_login_p2" name="password" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_login_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserService_register" name="register" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_register_p1" name="username" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_register_p2" name="password" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_register_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserService_requireResourceAccess" name="requireResourceAccess" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserService_requireResourceAccess_p1" name="user" type="cls_User" />
+        </ownedOperation>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ResourceService" name="ResourceService">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ResourceService_resources" name="resources" visibility="private" type="itf_ResourceDao" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ResourceService_records" name="records" visibility="private" type="itf_ReserveRecordDao" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_addResource" name="addResource" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_p2" name="name" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_p3" name="type" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_p4" name="location" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_p5" name="description" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_addResource_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_queryAllResources" name="queryAllResources" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryAllResources_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryAllResources_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_queryAvailableResources" name="queryAvailableResources" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryAvailableResources_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryAvailableResources_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_queryResourcesByName" name="queryResourcesByName" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourcesByName_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourcesByName_p2" name="keyword" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourcesByName_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_queryResourceById" name="queryResourceById" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourceById_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourceById_p2" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_queryResourceById_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_requireResourceForModification" name="requireResourceForModification" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_requireResourceForModification_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_requireResourceForModification_p2" name="id" type="type_String" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_modifyResource" name="modifyResource" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p2" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p3" name="name" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p4" name="type" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p5" name="location" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_p6" name="status" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_modifyResource_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceService_deleteResource" name="deleteResource" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_deleteResource_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_deleteResource_p2" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceService_deleteResource_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ReserveRecordService" name="ReserveRecordService">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecordService_records" name="records" visibility="private" type="itf_ReserveRecordDao" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecordService_resources" name="resources" visibility="private" type="itf_ResourceDao" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_requireStudentAccess" name="requireStudentAccess" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_requireStudentAccess_p1" name="user" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_requireAdminReserveAccess" name="requireAdminReserveAccess" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_requireAdminReserveAccess_p1" name="user" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_parseReserveTime" name="parseReserveTime" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_parseReserveTime_p1" name="value" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_parseReserveTime_return" name="return" direction="return" type="type_LocalDateTime" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_submitReserve" name="submitReserve" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_p2" name="resourceId" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_p3" name="start" type="type_LocalDateTime" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_p4" name="end" type="type_LocalDateTime" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_p5" name="remark" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_submitReserve_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_queryMyReserves" name="queryMyReserves" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryMyReserves_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryMyReserves_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_cancelReserve" name="cancelReserve" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_cancelReserve_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_cancelReserve_p2" name="recordId" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_cancelReserve_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_queryAllReserves" name="queryAllReserves" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryAllReserves_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryAllReserves_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_auditReserve" name="auditReserve" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_auditReserve_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_auditReserve_p2" name="recordId" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_auditReserve_p3" name="decision" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_auditReserve_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordService_queryReserves" name="queryReserves" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryReserves_p1" name="user" type="cls_User" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryReserves_p2" name="field" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryReserves_p3" name="value" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordService_queryReserves_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_dao" name="dao">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_dao">
+        <body>内存集合管理与文件 CRUD；文件实现各自实现最小 DAO 接口。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_FileUserDao" name="FileUserDao">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_FileUserDao_users" name="users" visibility="private" type="type_ListUser" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUserDao_findByUsername" name="findByUsername" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUserDao_findByUsername_p1" name="username" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUserDao_findByUsername_return" name="return" direction="return" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUserDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUserDao_add_p1" name="user" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUserDao_save" name="save" visibility="public" />
+        <interfaceRealization xmi:type="uml:InterfaceRealization" xmi:id="realize_FileUserDao" client="cls_FileUserDao" supplier="itf_UserDao" contract="itf_UserDao" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_FileResourceDao" name="FileResourceDao">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_FileResourceDao_resources" name="resources" visibility="private" type="type_ListCampusResource" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileResourceDao_findAll" name="findAll" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileResourceDao_findAll_return" name="return" direction="return" type="type_ListCampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileResourceDao_findById" name="findById" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileResourceDao_findById_p1" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileResourceDao_findById_return" name="return" direction="return" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileResourceDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileResourceDao_add_p1" name="resource" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileResourceDao_remove" name="remove" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileResourceDao_remove_p1" name="resource" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileResourceDao_save" name="save" visibility="public" />
+        <interfaceRealization xmi:type="uml:InterfaceRealization" xmi:id="realize_FileResourceDao" client="cls_FileResourceDao" supplier="itf_ResourceDao" contract="itf_ResourceDao" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_FileReserveRecordDao" name="FileReserveRecordDao">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_FileReserveRecordDao_records" name="records" visibility="private" type="type_ListReserveRecord" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileReserveRecordDao_findAll" name="findAll" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileReserveRecordDao_findAll_return" name="return" direction="return" type="type_ListReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileReserveRecordDao_findById" name="findById" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileReserveRecordDao_findById_p1" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileReserveRecordDao_findById_return" name="return" direction="return" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileReserveRecordDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileReserveRecordDao_add_p1" name="record" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileReserveRecordDao_remove" name="remove" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileReserveRecordDao_remove_p1" name="record" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileReserveRecordDao_save" name="save" visibility="public" />
+        <interfaceRealization xmi:type="uml:InterfaceRealization" xmi:id="realize_FileReserveRecordDao" client="cls_FileReserveRecordDao" supplier="itf_ReserveRecordDao" contract="itf_ReserveRecordDao" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interface" xmi:id="itf_UserDao" name="UserDao">
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserDao_findByUsername" name="findByUsername" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserDao_findByUsername_p1" name="username" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserDao_findByUsername_return" name="return" direction="return" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_UserDao_add_p1" name="user" type="cls_User" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_UserDao_save" name="save" visibility="public" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interface" xmi:id="itf_ResourceDao" name="ResourceDao">
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceDao_findAll" name="findAll" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceDao_findAll_return" name="return" direction="return" type="type_ListCampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceDao_findById" name="findById" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceDao_findById_p1" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceDao_findById_return" name="return" direction="return" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceDao_add_p1" name="resource" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceDao_remove" name="remove" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ResourceDao_remove_p1" name="resource" type="cls_CampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ResourceDao_save" name="save" visibility="public" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Interface" xmi:id="itf_ReserveRecordDao" name="ReserveRecordDao">
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordDao_findAll" name="findAll" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordDao_findAll_return" name="return" direction="return" type="type_ListReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordDao_findById" name="findById" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordDao_findById_p1" name="id" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordDao_findById_return" name="return" direction="return" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordDao_add" name="add" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordDao_add_p1" name="record" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordDao_remove" name="remove" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_ReserveRecordDao_remove_p1" name="record" type="cls_ReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_ReserveRecordDao_save" name="save" visibility="public" />
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_entity" name="entity">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_entity">
+        <body>只保存用户、资源与预约数据。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_User" name="User">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_User_username" name="username" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_User_password" name="password" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_User_role" name="role" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_User_registerTime" name="registerTime" visibility="private" type="type_LocalDateTime" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_CampusResource" name="CampusResource">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_id" name="id" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_name" name="name" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_type" name="type" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_status" name="status" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_location" name="location" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_CampusResource_description" name="description" visibility="private" type="type_String" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ReserveRecord" name="ReserveRecord">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_recordId" name="recordId" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_resourceId" name="resourceId" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_applicantUsername" name="applicantUsername" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_applyTime" name="applyTime" visibility="private" type="type_LocalDateTime" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_reserveStartTime" name="reserveStartTime" visibility="private" type="type_LocalDateTime" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_reserveEndTime" name="reserveEndTime" visibility="private" type="type_LocalDateTime" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_status" name="status" visibility="private" type="enum_ReserveStatus" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_ReserveRecord_remark" name="remark" visibility="private" type="type_String" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Enumeration" xmi:id="enum_ReserveStatus" name="ReserveStatus">
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="lit_PENDING" name="PENDING" />
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="lit_PASS" name="PASS" />
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="lit_REJECT" name="REJECT" />
+        <ownedLiteral xmi:type="uml:EnumerationLiteral" xmi:id="lit_CANCEL" name="CANCEL" />
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_exception" name="exception">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_exception">
+        <body>现有自定义业务异常。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_BusinessException" name="BusinessException" />
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ParameterEmptyException" name="ParameterEmptyException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_ParameterEmptyException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_PasswordErrorException" name="PasswordErrorException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_PasswordErrorException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_PermissionDeniedException" name="PermissionDeniedException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_PermissionDeniedException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_ResourceNotFoundException" name="ResourceNotFoundException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_ResourceNotFoundException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_UserAlreadyExistsException" name="UserAlreadyExistsException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_UserAlreadyExistsException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_UserNotFoundException" name="UserNotFoundException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_UserNotFoundException" general="cls_BusinessException" />
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_InvalidResourceStatusException" name="InvalidResourceStatusException">
+        <generalization xmi:type="uml:Generalization" xmi:id="general_InvalidResourceStatusException" general="cls_BusinessException" />
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Package" xmi:id="pkg_utils" name="utils">
+      <ownedComment xmi:type="uml:Comment" xmi:id="comment_pkg_utils">
+        <body>通用的文件格式处理与 Result&lt;T&gt; 返回约定。</body>
+      </ownedComment>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_FileUtil" name="FileUtil">
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_loadUsers" name="loadUsers" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_loadUsers_return" name="return" direction="return" type="type_ListUser" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_saveUsers" name="saveUsers" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_saveUsers_p1" name="users" type="type_ListUser" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_loadResources" name="loadResources" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_loadResources_return" name="return" direction="return" type="type_ListCampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_saveResources" name="saveResources" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_saveResources_p1" name="resources" type="type_ListCampusResource" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_loadReserves" name="loadReserves" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_loadReserves_return" name="return" direction="return" type="type_ListReserveRecord" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_FileUtil_saveReserves" name="saveReserves" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_FileUtil_saveReserves_p1" name="records" type="type_ListReserveRecord" />
+        </ownedOperation>
+      </packagedElement>
+      <packagedElement xmi:type="uml:Class" xmi:id="cls_Result" name="Result">
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_Result_success" name="success" visibility="private" type="type_boolean" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_Result_msg" name="msg" visibility="private" type="type_String" />
+        <ownedAttribute xmi:type="uml:Property" xmi:id="attr_Result_data" name="data" visibility="private" type="type_T" />
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_Result_isSuccess" name="isSuccess" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_isSuccess_return" name="return" direction="return" type="type_boolean" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_Result_getMsg" name="getMsg" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_getMsg_return" name="return" direction="return" type="type_String" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_Result_getData" name="getData" visibility="public">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_getData_return" name="return" direction="return" type="type_T" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_Result_success" name="success" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_success_p1" name="msg" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_success_p2" name="data" type="type_T" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_success_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+        <ownedOperation xmi:type="uml:Operation" xmi:id="op_Result_fail" name="fail" visibility="public" isStatic="true">
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_fail_p1" name="msg" type="type_String" />
+          <ownedParameter xmi:type="uml:Parameter" xmi:id="op_Result_fail_return" name="return" direction="return" type="cls_Result" />
+        </ownedOperation>
+      </packagedElement>
+    </packagedElement>
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="type_String" name="String" />
+    <packagedElement xmi:type="uml:PrimitiveType" xmi:id="type_boolean" name="boolean" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_LocalDateTime" name="LocalDateTime" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_Scanner" name="Scanner" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_StringArray" name="String[]" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_ListUser" name="List&lt;User&gt;" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_ListCampusResource" name="List&lt;CampusResource&gt;" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_ListReserveRecord" name="List&lt;ReserveRecord&gt;" />
+    <packagedElement xmi:type="uml:DataType" xmi:id="type_T" name="T" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_UserService" name="业务调用" client="cls_SystemMain" supplier="cls_UserService" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_ResourceService" name="业务调用" client="cls_SystemMain" supplier="cls_ResourceService" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_ReserveRecordService" name="业务调用" client="cls_SystemMain" supplier="cls_ReserveRecordService" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_FileUserDao" name="启动装配：仅 main() 创建" client="cls_SystemMain" supplier="cls_FileUserDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_FileUserDao_FileUtil" name="文件读写" client="cls_FileUserDao" supplier="cls_FileUtil" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_FileResourceDao" name="启动装配：仅 main() 创建" client="cls_SystemMain" supplier="cls_FileResourceDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_FileResourceDao_FileUtil" name="文件读写" client="cls_FileResourceDao" supplier="cls_FileUtil" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_SystemMain_FileReserveRecordDao" name="启动装配：仅 main() 创建" client="cls_SystemMain" supplier="cls_FileReserveRecordDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_FileReserveRecordDao_FileUtil" name="文件读写" client="cls_FileReserveRecordDao" supplier="cls_FileUtil" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_UserService_UserDao" name="构造器注入接口" client="cls_UserService" supplier="itf_UserDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_UserService_Result" name="返回 Result&lt;T&gt;" client="cls_UserService" supplier="cls_Result" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ResourceService_ResourceDao" name="构造器注入接口" client="cls_ResourceService" supplier="itf_ResourceDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ResourceService_ReserveRecordDao" name="构造器注入接口" client="cls_ResourceService" supplier="itf_ReserveRecordDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ResourceService_Result" name="返回 Result&lt;T&gt;" client="cls_ResourceService" supplier="cls_Result" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ReserveRecordService_ResourceDao" name="构造器注入接口" client="cls_ReserveRecordService" supplier="itf_ResourceDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ReserveRecordService_ReserveRecordDao" name="构造器注入接口" client="cls_ReserveRecordService" supplier="itf_ReserveRecordDao" />
+    <packagedElement xmi:type="uml:Dependency" xmi:id="dep_ReserveRecordService_Result" name="返回 Result&lt;T&gt;" client="cls_ReserveRecordService" supplier="cls_Result" />
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_FileUserDao_User" name="管理内存集合" memberEnd="assoc_FileUserDao_User_dao assoc_FileUserDao_User_entity">
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileUserDao_User_dao" name="manager" type="cls_FileUserDao" association="assoc_FileUserDao_User" />
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileUserDao_User_entity" name="items" type="cls_User" association="assoc_FileUserDao_User">
+        <lowerValue xmi:type="uml:LiteralInteger" xmi:id="assoc_FileUserDao_User_entity_lower" value="0" />
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="assoc_FileUserDao_User_entity_upper" value="*" />
+      </ownedEnd>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_FileResourceDao_CampusResource" name="管理内存集合" memberEnd="assoc_FileResourceDao_CampusResource_dao assoc_FileResourceDao_CampusResource_entity">
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileResourceDao_CampusResource_dao" name="manager" type="cls_FileResourceDao" association="assoc_FileResourceDao_CampusResource" />
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileResourceDao_CampusResource_entity" name="items" type="cls_CampusResource" association="assoc_FileResourceDao_CampusResource">
+        <lowerValue xmi:type="uml:LiteralInteger" xmi:id="assoc_FileResourceDao_CampusResource_entity_lower" value="0" />
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="assoc_FileResourceDao_CampusResource_entity_upper" value="*" />
+      </ownedEnd>
+    </packagedElement>
+    <packagedElement xmi:type="uml:Association" xmi:id="assoc_FileReserveRecordDao_ReserveRecord" name="管理内存集合" memberEnd="assoc_FileReserveRecordDao_ReserveRecord_dao assoc_FileReserveRecordDao_ReserveRecord_entity">
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileReserveRecordDao_ReserveRecord_dao" name="manager" type="cls_FileReserveRecordDao" association="assoc_FileReserveRecordDao_ReserveRecord" />
+      <ownedEnd xmi:type="uml:Property" xmi:id="assoc_FileReserveRecordDao_ReserveRecord_entity" name="items" type="cls_ReserveRecord" association="assoc_FileReserveRecordDao_ReserveRecord">
+        <lowerValue xmi:type="uml:LiteralInteger" xmi:id="assoc_FileReserveRecordDao_ReserveRecord_entity_lower" value="0" />
+        <upperValue xmi:type="uml:LiteralUnlimitedNatural" xmi:id="assoc_FileReserveRecordDao_ReserveRecord_entity_upper" value="*" />
+      </ownedEnd>
+    </packagedElement>
+  </uml:Model>
+</xmi:XMI>

@@ -1,3 +1,10 @@
+package utils;
+
+import entity.CampusResource;
+import entity.ReserveRecord;
+import entity.ReserveStatus;
+import entity.User;
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
