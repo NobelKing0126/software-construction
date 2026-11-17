@@ -5,9 +5,10 @@ import dao.ReserveRecordDao;
 import dao.ResourceDao;
 import dao.UserDao;
 import exception.BusinessException;
-import service.ReserveRecordService;
-import service.ResourceService;
 import service.UserService;
+import service.impl.ReserveRecordServiceImpl;
+import service.impl.ResourceServiceImpl;
+import service.impl.UserServiceImpl;
 import utils.Result;
 
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
@@ -22,9 +23,9 @@ final class ConsoleApplication {
             return;
         }
 
-        UserService userService = UserService.getInstance();
-        ResourceConsole resourceConsole = new ResourceConsole(ResourceService.getInstance());
-        ReserveConsole reserveConsole = new ReserveConsole(ReserveRecordService.getInstance());
+        UserService userService = UserServiceImpl.getInstance();
+        ResourceConsole resourceConsole = new ResourceConsole(ResourceServiceImpl.getInstance());
+        ReserveConsole reserveConsole = new ReserveConsole(ReserveRecordServiceImpl.getInstance());
         new ConsoleSession(userService, resourceConsole, reserveConsole).run();
     }
 
