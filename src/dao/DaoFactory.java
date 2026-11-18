@@ -1,5 +1,9 @@
 package dao;
 
+import dao.impl.FileReserveRecordDao;
+import dao.impl.FileResourceDao;
+import dao.impl.FileUserDao;
+
 // Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public final class DaoFactory {
     private DaoFactory() {

@@ -1,5 +1,6 @@
-package dao;
+package dao.impl;
 
+import dao.ReserveRecordDao;
 import entity.ReserveRecord;
 import utils.FileUtil;
 

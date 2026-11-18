@@ -1,5 +1,6 @@
-package dao;
+package dao.impl;
 
+import dao.UserDao;
 import entity.User;
 import utils.FileUtil;
 

@@ -1,5 +1,6 @@
-package dao;
+package dao.impl;
 
+import dao.ResourceDao;
 import entity.CampusResource;
 import utils.FileUtil;
 

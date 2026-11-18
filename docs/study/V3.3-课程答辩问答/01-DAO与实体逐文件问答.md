@@ -1,6 +1,6 @@
 # V3.3 DAO 与实体逐文件答辩问答
 
-本章覆盖 `src/dao` 的 7 个文件和 `src/entity` 的 4 个文件，共 54 题。内容根据当前源码静态阅读整理，源码基线为 `21fe14ca8f22416f8a8bf7bc3516f9c45f181c3d`；本次编写没有运行程序、改变数据文件或重新验证 JDK。源码中的历史验证注释不能替代本次运行证据。
+本章覆盖 `src/dao`（含 `impl` 子包）的 7 个文件和 `src/entity` 的 4 个文件，共 54 题。初版静态阅读基线为 `21fe14ca8f22416f8a8bf7bc3516f9c45f181c3d`，当时没有运行程序、改变数据文件或重新验证 JDK；本轮已同步 DAO 实现迁包和 User 封装调整。实际验证见 [结构整理实验报告](../../reports/V3.3-面向对象结构整理实验报告.md)，源码中的历史验证注释不能替代本轮运行证据。
 
 先读 [00-阅读导航与核心知识](00-阅读导航与核心知识.md)，建立分层、契约、封装的概念，再按本章逐文件复习。业务权限、预约状态迁移和失败补偿的完整过程见 [02-Service逐文件问答](02-Service逐文件问答.md)；文本格式与转义见 [04-工具类逐文件问答](04-工具类逐文件问答.md)。本章的“可改进”表示设计讨论，不表示项目已经实现。
 
@@ -166,9 +166,9 @@ DAO 也不会级联删除预约。`ResourceServiceImpl.deleteResource()` 自己�
 
 当前服务先保存预约，再按需要保存资源；失败时尝试恢复内存字段，并在必要时重写预约文件。这属于业务层的补偿处理，不是数据库式原子事务。第二次写入、补偿写入乃至进程中断都可能留下限制，不能用 DAO 接口中的一个 `save()` 推导出跨文件 ACID 保证。
 
-## src/dao/FileUserDao.java
+## src/dao/impl/FileUserDao.java
 
-**职责：**以进程内用户列表提供访问，并委托 `FileUtil` 加载、保存 `user.txt`。**关键函数：**静态初始化块、私有构造器、`getInstance()`、`findByUsername()`、`add()`、`save()`。**依赖：**`UserDao`、`User`、`FileUtil`、`List`。源码：[FileUserDao.java](../../../src/dao/FileUserDao.java)。
+**职责：**以进程内用户列表提供访问，并委托 `FileUtil` 加载、保存 `user.txt`。**关键函数：**静态初始化块、私有构造器、`getInstance()`、`findByUsername()`、`add()`、`save()`。**依赖：**`UserDao`、`User`、`FileUtil`、`List`。源码：[FileUserDao.java](../../../src/dao/impl/FileUserDao.java)。
 
 ### D17. 这个单例为什么称为饿汉式，它究竟何时读取文件？
 
@@ -206,9 +206,9 @@ Java 类初始化提供初始化阶段的协调，解决的是实例构造与发
 
 磁盘情况则不能简单说“保持旧文件”：`FileUtil.saveUsers()` 直接打开输出流覆盖写入，失败可能发生在不同阶段。这里暴露的是内存状态与持久化状态不一致的风险。预约新增有自己的内存补偿，不应把那部分机制误归到所有 DAO 或用户注册上。
 
-## src/dao/FileResourceDao.java
+## src/dao/impl/FileResourceDao.java
 
-**职责：**管理共享资源列表，按 ID 查询，并委托工具类加载、保存资源文件。**关键函数：**静态初始化、`findAll()`、`findById()`、`add()`、`remove()`、`save()`。**依赖：**`ResourceDao`、`CampusResource`、`FileUtil`、`ArrayList`。源码：[FileResourceDao.java](../../../src/dao/FileResourceDao.java)。
+**职责：**管理共享资源列表，按 ID 查询，并委托工具类加载、保存资源文件。**关键函数：**静态初始化、`findAll()`、`findById()`、`add()`、`remove()`、`save()`。**依赖：**`ResourceDao`、`CampusResource`、`FileUtil`、`ArrayList`。源码：[FileResourceDao.java](../../../src/dao/impl/FileResourceDao.java)。
 
 ### D23. `findAll()` 为什么创建新列表，这是不是深拷贝？
 
@@ -246,9 +246,9 @@ Java 类初始化提供初始化阶段的协调，解决的是实例构造与发
 
 例如修改资源名称后保存失败，调用方收到失败不代表内存中的名称已经复原。对测试设计而言，应分别观察返回/异常、内存查询和重启后读取的数据，三者可能不同。这是从异常安全角度分析操作后置状态，不是在断言每次 I/O 失败都一定造成同一种损坏。
 
-## src/dao/FileReserveRecordDao.java
+## src/dao/impl/FileReserveRecordDao.java
 
-**职责：**保存进程内预约记录集合，提供流式 ID 查询，委托工具类读写预约文件。**关键函数：**静态初始化、`findAll()`、`findById()`、`add()`、`remove()`、`save()`。**依赖：**`ReserveRecordDao`、`ReserveRecord`、`FileUtil`、`ArrayList` 与 Java Stream。源码：[FileReserveRecordDao.java](../../../src/dao/FileReserveRecordDao.java)。
+**职责：**保存进程内预约记录集合，提供流式 ID 查询，委托工具类读写预约文件。**关键函数：**静态初始化、`findAll()`、`findById()`、`add()`、`remove()`、`save()`。**依赖：**`ReserveRecordDao`、`ReserveRecord`、`FileUtil`、`ArrayList` 与 Java Stream。源码：[FileReserveRecordDao.java](../../../src/dao/impl/FileReserveRecordDao.java)。
 
 ### D29. `stream().filter().findFirst().orElse(null)` 每一步分别做什么？
 
@@ -318,13 +318,13 @@ public final class ReserveDaoWalkthrough {
 
 ## src/entity/User.java
 
-**职责：**承载账号、密码、角色、注册时间等用户数据。**关键函数：**无参/全参构造器、四组 getter/setter、`toString()`。**依赖：**`LocalDateTime`；被用户 DAO、登录注册服务以及权限检查使用。源码：[User.java](../../../src/entity/User.java)。
+**职责：**承载账号、密码、角色、注册时间等用户数据，并封装密码匹配行为。**关键函数：**无参/全参构造器、四组 getter/setter、`matchesPassword()`、`toString()`。**依赖：**`LocalDateTime`；被用户 DAO、登录注册服务以及权限检查使用。源码：[User.java](../../../src/entity/User.java)。
 
 ### E01. 使用私有字段和 getter/setter 是否就完成了“良好封装”？
 
 私有字段隐藏了直接存储访问，但封装还要求通过公开操作维护对象不变式，例如账号非空、角色合法。当前 setter 和全参构造器都直接赋值，没有校验，调用 `setRole("unknown")` 或 `setUsername(null)` 在实体层不会被拒绝；无参构造器还会留下全部字段为 `null`。
 
-当前正常注册依赖服务检查账号、密码并固定使用 `student` 角色，所以业务入口有部分约束。准确评价是实体实现了访问控制，但没有自行维护完整业务不变式。封装强弱应看公开方法允许产生哪些状态，不能只统计 `private` 的数量。
+当前正常注册依赖服务检查账号、密码并固定使用 `student` 角色，所以业务入口有部分约束。登录通过 `matchesPassword` 请求用户对象比较密码，服务不再取出密码自行比较；该方法对非空输入作精确字符串比较，不改变大小写、空格或长度。实体因此封装了一项行为，但仍没有自行维护完整业务不变式。封装强弱应看公开方法允许产生哪些状态，不能只统计 `private` 的数量。
 
 ### E02. 角色使用字符串而预约状态使用枚举，有什么实际取舍？
 
@@ -332,11 +332,11 @@ public final class ReserveDaoWalkthrough {
 
 枚举可以把合法角色集合变成类型的一部分，但需要调整实体、服务、文件读写和兼容策略。当前没有 `Role` 枚举，也没有基于角色的权限表。答辩可说明这是模型一致性上的改进方向，而不能把字符串比较描述成完整 RBAC 框架。
 
-### E03. `User.toString()` 输出密码为什么是真实问题，持久化是否依赖它？
+### E03. `User.toString()` 为什么不再输出密码，持久化是否依赖它？
 
-当前 `toString()` 明确拼接 `password` 字段，因此直接打印用户、日志记录对象或某些调试展示时，会把密码包含在输出中。这是源码可确认的暴露渠道，但不能据此虚构“程序已经把密码发到网络”或“某次日志已经泄露”的事件。
+本轮已从 `toString()` 中移除 `password`，只展示用户名、角色和注册时间。因此直接打印用户或包含该用户的 `Result` 时，不会再经此字符串表示输出密码。这是明确的显示行为变化，旧版报告中的真实运行输出仍按当时版本保留。
 
-文件持久化并不调用 `toString()`，而是 `FileUtil.saveUsers()` 逐个取 getter 写字段；密码本身也按字符串写入，登录直接比较输入与保存值，所以当前没有密码哈希存储。改进时，展示隐藏与凭据安全存储是两个不同问题，仅修改 `toString()` 不能解决文件中的明文密码。
+文件持久化并不调用 `toString()`，而是 `FileUtil.saveUsers()` 逐个取 getter 写字段；`getPassword()` 因此仍保留。密码本身仍按字符串写入，`matchesPassword` 也只比较输入与保存值，当前没有密码哈希存储。展示隐藏与凭据安全存储是两个不同问题，仅修改 `toString()` 不会改变文件中的明文密码。
 
 ### E04. 注册时间为何选 `LocalDateTime`，getter 直接返回它是否像返回可变集合一样危险？
 

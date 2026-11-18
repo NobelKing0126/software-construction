@@ -2,6 +2,7 @@ package entity;
 
 import java.time.LocalDateTime;
 
+// Compiled and verified with Temurin JDK 8 (1.8.0_504).
 public class User {
     private String username;
     private String password;
@@ -34,6 +35,10 @@ public class User {
         this.password = password;
     }
 
+    public boolean matchesPassword(String candidate) {
+        return candidate != null && candidate.equals(password);
+    }
+
     public String getRole() {
         return role;
     }
@@ -53,7 +58,6 @@ public class User {
     @Override
     public String toString() {
         return "User{username='" + username + '\''
-                + ", password='" + password + '\''
                 + ", role='" + role + '\''
                 + ", registerTime=" + registerTime
                 + '}';

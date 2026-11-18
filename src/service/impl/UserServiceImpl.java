@@ -40,7 +40,7 @@ public class UserServiceImpl implements UserService {
         if (user == null) {
             throw new UserNotFoundException("用户不存在，登录失败。");
         }
-        if (!password.equals(user.getPassword())) {
+        if (!user.matchesPassword(password)) {
             throw new PasswordErrorException("密码错误，登录失败。");
         }
         return Result.success("登录成功，欢迎使用校园资源预约系统！", user);
